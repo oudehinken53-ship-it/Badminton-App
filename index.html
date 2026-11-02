@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; connect-src 'self' https://accounts.google.com/gsi/ https://*.workers.dev; frame-src https://accounts.google.com/gsi/; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.workers.dev; img-src 'self' data:; base-uri 'none'; form-action 'none'">
   <title>SV Union Lohne 1920 e.V. | Badminton</title>
   <meta name="description" content="Offizielle Trainings- und Anwesenheitsverwaltung der Badminton-Abteilung des SV Union Lohne 1920 e.V.">
   <link rel="stylesheet" href="styles.css">
@@ -11,7 +11,6 @@
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="apple-touch-icon" href="logo.png">
   <meta name="theme-color" content="#E1031F">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -45,12 +44,15 @@
           <option value="ben">Ben Schmidt (Spieler)</option>
           <option value="orga">Olaf Orga (Organisator)</option>
           <option value="admin">Ada Admin (Administrator)</option>
-          <option value="google">Google Login</option>
         </select>
       </div>
     </div>
-    <div id="googleAuthContainer" style="display: none; margin-top: 10px;">
-      <div id="googleButton"></div>
+    <div id="loginBox" style="display: none; margin-top: 12px;">
+      <label for="inviteCode" style="display: block; color: #fff; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Einladungscode:</label>
+      <div style="display: flex; gap: 8px;">
+        <input id="inviteCode" type="text" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false" class="demo-selector" style="flex: 1; min-width: 0; padding: 10px; font-size: 1rem;" placeholder="XXXXX-XXXXX">
+        <button id="redeemBtn" class="btn btn-decline" style="flex: none;">Anmelden</button>
+      </div>
     </div>
   </header>
 
@@ -175,11 +177,9 @@
       </div>
 
       <div class="pref-card" id="linkCard" style="display: none; margin-bottom: 16px;">
-        <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Konto-Zuordnung</h3>
+        <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Zugänge</h3>
         <label for="linkPlayerSelect" style="font-size: 0.85rem; font-weight: 600;">Spieler:</label>
         <select id="linkPlayerSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
-        <label for="linkSub" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Konto-Kennung (zeigt die App dem Spieler an):</label>
-        <input id="linkSub" type="text" maxlength="100" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
         <label for="linkRole" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Rolle:</label>
         <select id="linkRole" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
           <option value="PLAYER">Spieler</option>
@@ -187,8 +187,13 @@
           <option value="ADMIN">Admin</option>
         </select>
         <div style="display: flex; gap: 8px; margin-top: 12px;">
-          <button id="linkBtn" class="btn btn-primary" style="flex: 1;">Zuordnen</button>
-          <button id="unlinkBtn" class="btn btn-decline" style="flex: 1;">Zuordnung lösen</button>
+          <button id="linkBtn" class="btn btn-primary" style="flex: 1;">Code erzeugen</button>
+          <button id="unlinkBtn" class="btn btn-decline" style="flex: 1;">Zugang sperren</button>
+        </div>
+        <div id="inviteResult" role="status" style="display: none; margin-top: 12px; padding: 12px; border: 2px dashed var(--gray-600); border-radius: 8px; text-align: center;">
+          <div style="font-size: 0.8rem; color: var(--gray-600);">Einladungscode, wird nur jetzt angezeigt:</div>
+          <strong id="inviteCodeOut" style="display: block; margin: 4px 0; font-size: 1.4rem; letter-spacing: 0.08em; user-select: all;"></strong>
+          <div id="inviteExpiry" style="font-size: 0.8rem; color: var(--gray-600);"></div>
         </div>
       </div>
 

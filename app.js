@@ -17,15 +17,35 @@ const cfg = window.BADMINTON_CONFIG || {};
 // Demo data only by explicit config, or on a local dev server with ?demo=1. Never the default.
 const isLocalHost = ['localhost', '127.0.0.1'].includes(location.hostname);
 const demoMode = cfg.demoMode === true || (isLocalHost && new URLSearchParams(location.search).has('demo'));
-const isConfigured = Boolean(cfg.googleClientId && cfg.gatewayUrl) &&
-  !/REPLACE_WITH|YOUR-WORKER/.test(cfg.googleClientId + cfg.gatewayUrl);
+const isConfigured = Boolean(cfg.gatewayUrl) && !/YOUR-WORKER/.test(cfg.gatewayUrl);
+
+// The device key keeps a phone signed in. Storage can be unavailable, then the code is asked for again.
+const DEVICE_TOKEN_KEY = 'bms_device_token';
+
+function loadDeviceToken() {
+  try {
+    return localStorage.getItem(DEVICE_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveDeviceToken(token) {
+  state.deviceToken = token;
+  try {
+    if (token) localStorage.setItem(DEVICE_TOKEN_KEY, token);
+    else localStorage.removeItem(DEVICE_TOKEN_KEY);
+  } catch {
+    // Stays signed in until the page is closed
+  }
+}
 
 // Global App State
 const state = {
   activeTab: 'sessions',
-  persona: demoMode ? 'anna' : 'google', // 'anna' | 'ben' | 'orga' | 'admin' | 'google'
+  persona: demoMode ? 'anna' : 'live', // 'anna' | 'ben' | 'orga' | 'admin' | 'live'
   currentUser: null,
-  idToken: null,
+  deviceToken: loadDeviceToken(),
   sessions: [],
   preferences: {},
   leaderboard: [],
@@ -101,8 +121,9 @@ const dom = {
   personaWrap: document.getElementById('personaWrap'),
   demoBanner: document.getElementById('demoBanner'),
   currentYear: document.getElementById('currentYear'),
-  googleAuthContainer: document.getElementById('googleAuthContainer'),
-  googleButton: document.getElementById('googleButton'),
+  loginBox: document.getElementById('loginBox'),
+  inviteCode: document.getElementById('inviteCode'),
+  redeemBtn: document.getElementById('redeemBtn'),
   playerRankSummary: document.getElementById('playerRankSummary'),
   sessionList: document.getElementById('sessionList'),
   refreshSessionsBtn: document.getElementById('refreshSessionsBtn'),
@@ -123,7 +144,9 @@ const dom = {
   cancelSessionBtn: document.getElementById('cancelSessionBtn'),
   linkCard: document.getElementById('linkCard'),
   linkPlayerSelect: document.getElementById('linkPlayerSelect'),
-  linkSub: document.getElementById('linkSub'),
+  inviteResult: document.getElementById('inviteResult'),
+  inviteCodeOut: document.getElementById('inviteCodeOut'),
+  inviteExpiry: document.getElementById('inviteExpiry'),
   linkRole: document.getElementById('linkRole'),
   linkBtn: document.getElementById('linkBtn'),
   unlinkBtn: document.getElementById('unlinkBtn'),
@@ -150,40 +173,39 @@ function esc(value) {
 }
 
 const ERROR_MESSAGES = {
-  UNAUTHENTICATED: 'Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.',
-  UNLINKED_ACCOUNT: 'Dein Google-Konto ist noch keinem Spieler zugeordnet. Bitte wende dich an den Admin.',
+  UNAUTHENTICATED: 'Bitte melde dich mit deinem Einladungscode an.',
+  UNLINKED_ACCOUNT: 'Dieser Zugang ist nicht aktiv. Bitte hol dir beim Admin einen neuen Einladungscode.',
+  INVALID_INVITE: 'Dieser Code ist ungültig, abgelaufen oder wurde schon benutzt.',
+  RATE_LIMITED: 'Zu viele falsche Codes. Bitte versuche es in einer Viertelstunde noch einmal.',
   FORBIDDEN: 'Dafür fehlt dir die Berechtigung.',
   SESSION_NOT_OPEN: 'Dieser Termin ist nicht mehr offen. Nichts wurde gespeichert.',
   SESSION_ALREADY_CLOSED: 'Dieser Termin ist bereits abgeschlossen. Nichts wurde gespeichert.',
   SESSION_NOT_FOUND: 'Dieser Termin wurde nicht gefunden.',
   PLAYER_NOT_FOUND: 'Dieser Spieler wurde nicht gefunden oder ist nicht aktiv.',
   INVALID_CANCEL_DATA: 'Bitte gib einen Grund für die Absage an.',
-  INVALID_LINK_DATA: 'Bitte prüfe Spieler, Konto-Kennung und Rolle.',
-  IDENTITY_ALREADY_LINKED: 'Dieses Konto ist bereits einem anderen Spieler zugeordnet.',
-  PLAYER_ALREADY_LINKED: 'Dieser Spieler hat bereits ein anderes Konto. Bitte löse zuerst die Zuordnung.',
-  IDENTITY_NOT_LINKED: 'Dieser Spieler hat keine aktive Zuordnung.',
+  INVALID_INVITE_DATA: 'Bitte prüfe Spieler und Rolle.',
+  IDENTITY_NOT_LINKED: 'Dieser Spieler hat keinen aktiven Zugang.',
   SELF_LOCKOUT: 'Deinen eigenen Zugang kannst du nicht ändern.',
   RECOVERY_REQUIRED: 'Der Abschluss ist unvollständig und wurde gestoppt. Punkte prüfen, bitte den Admin informieren.',
   UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar. Nichts wurde gespeichert.',
   NETWORK: 'Keine Verbindung zum Server. Nichts wurde gespeichert.'
 };
 
-function apiError(code, subject) {
+function apiError(code) {
   const err = new Error(ERROR_MESSAGES[code] || `Unerwarteter Fehler (${code}). Nichts wurde gespeichert.`);
   err.code = code;
-  err.subject = subject;
   return err;
 }
 
 // API Dispatcher (Mock vs Gateway)
 async function callApi(action, data = {}) {
   // Demo Mode: run local mock backend
-  if (state.persona !== 'google') {
+  if (state.persona !== 'live') {
     return runMockApi(action, data);
   }
 
   // Live Gateway Mode
-  if (!state.idToken) {
+  if (!state.deviceToken && action !== 'redeemInvite') {
     throw apiError('UNAUTHENTICATED');
   }
 
@@ -192,7 +214,7 @@ async function callApi(action, data = {}) {
     response = await fetch(cfg.gatewayUrl.replace(/\/$/, '') + '/api', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, data, idToken: state.idToken }),
+      body: JSON.stringify({ action, data, deviceToken: state.deviceToken }),
       cache: 'no-store'
     });
   } catch {
@@ -206,12 +228,14 @@ async function callApi(action, data = {}) {
     throw apiError('BACKEND_ERROR');
   }
   if (!response.ok || !result.ok) {
-    if (result.code === 'UNAUTHENTICATED') {
-      state.idToken = null;
-      showSignedOut(ERROR_MESSAGES.UNAUTHENTICATED);
+    // The key is useless now (blocked or replaced by a new device), ask for a code again
+    if (result.code === 'UNAUTHENTICATED' || result.code === 'UNLINKED_ACCOUNT') {
+      saveDeviceToken(null);
+      showSignedOut(ERROR_MESSAGES[result.code]);
     }
-    throw apiError(result.code || 'BACKEND_ERROR', result.ownGoogleSub);
+    throw apiError(result.code || 'BACKEND_ERROR');
   }
+  if (result.deviceToken) saveDeviceToken(result.deviceToken);
   return result.data;
 }
 
@@ -339,27 +363,31 @@ async function runMockApi(action, data) {
     case 'listPlayerLinks': {
       const players = Object.values(mockDb.users).map(u => {
         const role = u.linked === false ? '' : u.role;
-        return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, linked: u.linked !== false, role };
+        return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, linked: u.linked !== false, role, invitePending: u.invitePending === true };
       });
       return { players };
     }
 
-    case 'linkIdentity': {
+    case 'createInvite': {
       const target = Object.values(mockDb.users).find(u => u.playerId === data.playerId);
       if (!target) throw apiError('PLAYER_NOT_FOUND');
-      if (!data.providerSub || !data.role) throw apiError('INVALID_LINK_DATA');
       if (target.playerId === user.playerId) throw apiError('SELF_LOCKOUT');
-      target.linked = true;
-      target.role = data.role;
-      return { playerId: target.playerId, role: data.role, linked: true };
+      target.invitePending = true;
+      return {
+        playerId: target.playerId,
+        role: data.role,
+        code: 'DEMO2-CODE3',
+        expiresAt: new Date(Date.now() + 7 * 86400000).toISOString()
+      };
     }
 
     case 'unlinkIdentity': {
       const target = Object.values(mockDb.users).find(u => u.playerId === data.playerId);
       if (!target) throw apiError('PLAYER_NOT_FOUND');
       if (target.playerId === user.playerId) throw apiError('SELF_LOCKOUT');
-      if (target.linked === false) throw apiError('IDENTITY_NOT_LINKED');
+      if (target.linked === false && !target.invitePending) throw apiError('IDENTITY_NOT_LINKED');
       target.linked = false;
+      target.invitePending = false;
       return { playerId: target.playerId, linked: false };
     }
 
@@ -397,29 +425,23 @@ dom.navTabs.forEach(tab => {
   tab.addEventListener('click', () => switchTab(tab.dataset.tab));
 });
 
-// Persona Change (Anna, Ben, Orga, Admin, Google)
+// Persona Change (demo only)
 dom.personaSelect.addEventListener('change', async e => {
   state.persona = e.target.value;
-  if (state.persona === 'google') {
-    dom.googleAuthContainer.style.display = 'block';
-    initGoogleSignIn();
-  } else {
-    dom.googleAuthContainer.style.display = 'none';
-    await initUser();
-  }
+  await initUser();
 });
 
 // Nobody signed in: no data on screen, a clear message instead
-function showSignedOut(message, detail) {
+function showSignedOut(message) {
   state.currentUser = null;
   dom.userName.textContent = 'Nicht angemeldet';
   dom.roleBadge.textContent = 'Gast';
   dom.adminNavTab.style.display = 'none';
   dom.playerRankSummary.replaceChildren();
-  dom.googleAuthContainer.style.display = state.persona === 'google' && (isConfigured || demoMode) ? 'block' : 'none';
+  dom.loginBox.style.display = state.persona === 'live' && isConfigured && !state.deviceToken ? 'block' : 'none';
   if (state.activeTab === 'admin') switchTab('sessions');
   dom.sessionList.innerHTML = `
-    <p style="color: var(--gray-600); text-align: center; padding: 24px;">${esc(message)}${detail ? `<br><small>${esc(detail)}</small>` : ''}</p>
+    <p style="color: var(--gray-600); text-align: center; padding: 24px;">${esc(message)}</p>
   `;
 }
 
@@ -430,6 +452,7 @@ async function initUser() {
     state.currentUser = me;
     dom.userName.textContent = `${me.firstName} ${me.lastName}`;
     dom.roleBadge.textContent = me.role;
+    dom.loginBox.style.display = 'none';
 
     // Show Orga/Admin tab if role permits
     const canSeeAdmin = me.role === 'ORGANIZER' || me.role === 'ADMIN';
@@ -437,7 +460,7 @@ async function initUser() {
 
     await loadSessions();
   } catch (err) {
-    showSignedOut(err.message, err.code === 'UNLINKED_ACCOUNT' && err.subject ? `Deine Konto-Kennung für den Admin: ${err.subject}` : '');
+    if (err.code !== 'UNLINKED_ACCOUNT' && err.code !== 'UNAUTHENTICATED') showSignedOut(err.message);
   }
 }
 
@@ -710,7 +733,8 @@ async function loadPlayerLinks() {
     players.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.playerId;
-      opt.textContent = `${p.firstName} ${p.lastName} (${p.linked ? p.role : 'nicht zugeordnet'})`;
+      const status = p.linked ? p.role : (p.invitePending ? 'Code offen' : 'kein Zugang');
+      opt.textContent = `${p.firstName} ${p.lastName} (${status})`;
       dom.linkPlayerSelect.append(opt);
     });
     if (selected) dom.linkPlayerSelect.value = selected;
@@ -855,14 +879,15 @@ dom.cancelSessionBtn.addEventListener('click', async () => {
 
 dom.linkBtn.addEventListener('click', async () => {
   dom.linkBtn.disabled = true;
+  dom.inviteResult.style.display = 'none';
   try {
-    await callApi('linkIdentity', {
-      providerSub: dom.linkSub.value.trim(),
+    const invite = await callApi('createInvite', {
       playerId: dom.linkPlayerSelect.value,
       role: dom.linkRole.value
     });
-    dom.linkSub.value = '';
-    showToast('Konto zugeordnet.');
+    dom.inviteCodeOut.textContent = invite.code;
+    dom.inviteExpiry.textContent = `Gültig bis ${new Date(invite.expiresAt).toLocaleDateString('de-DE')}, nur einmal verwendbar. Ein früherer offener Code verfällt damit.`;
+    dom.inviteResult.style.display = 'block';
     await loadPlayerLinks();
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
@@ -872,13 +897,14 @@ dom.linkBtn.addEventListener('click', async () => {
 });
 
 dom.unlinkBtn.addEventListener('click', async () => {
-  if (!confirm('Zuordnung wirklich lösen? Der Spieler kann sich danach nicht mehr anmelden, bis du das Konto neu zuordnest.')) {
+  if (!confirm('Zugang wirklich sperren? Der Spieler braucht danach einen neuen Einladungscode.')) {
     return;
   }
   dom.unlinkBtn.disabled = true;
   try {
     await callApi('unlinkIdentity', { playerId: dom.linkPlayerSelect.value });
-    showToast('Zuordnung gelöst.');
+    dom.inviteResult.style.display = 'none';
+    showToast('Zugang gesperrt.');
     await loadPlayerLinks();
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
@@ -906,25 +932,26 @@ dom.systemHealthBtn.addEventListener('click', async () => {
   }
 });
 
-// Google Identity Services (GIS) Integration
-let signInReady = false;
-
-function initGoogleSignIn() {
-  if (signInReady || !window.google?.accounts?.id) return;
-  signInReady = true;
-  window.google.accounts.id.initialize({
-    client_id: cfg.googleClientId,
-    callback: response => {
-      state.idToken = response.credential;
-      showToast('Google-Token empfangen!');
-      initUser();
-    },
-    auto_select: false
-  });
-  window.google.accounts.id.renderButton(dom.googleButton, {
-    theme: 'outline', size: 'large', text: 'signin_with'
-  });
+// Sign-in with an invitation code
+async function redeemCode() {
+  const code = dom.inviteCode.value.trim();
+  if (!code) return;
+  dom.redeemBtn.disabled = true;
+  try {
+    await callApi('redeemInvite', { code });
+    dom.inviteCode.value = '';
+    await initUser();
+  } catch (err) {
+    showToast(err.message, 6000);
+  } finally {
+    dom.redeemBtn.disabled = false;
+  }
 }
+
+dom.redeemBtn.addEventListener('click', redeemCode);
+dom.inviteCode.addEventListener('keydown', e => {
+  if (e.key === 'Enter') redeemCode();
+});
 
 // Start Application
 function startApp() {
@@ -942,13 +969,12 @@ function startApp() {
     return;
   }
 
-  showSignedOut('Bitte melde dich mit deinem Google-Konto an.');
-  // The Google library loads async, it may arrive before or after this point
-  window.onGoogleLibraryLoad = initGoogleSignIn;
-  initGoogleSignIn();
-  setTimeout(() => {
-    if (!signInReady) showSignedOut('Die Google-Anmeldung konnte nicht geladen werden. Bitte lade die Seite neu.');
-  }, 8000);
+  if (state.deviceToken) {
+    initUser();
+    return;
+  }
+
+  showSignedOut(ERROR_MESSAGES.UNAUTHENTICATED);
 }
 
 startApp();
