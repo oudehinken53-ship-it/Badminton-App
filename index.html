@@ -2,7 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; connect-src 'self' https://accounts.google.com/gsi/ https://*.workers.dev; frame-src https://accounts.google.com/gsi/; img-src 'self' data:; base-uri 'none'; form-action 'none'">
   <title>SV Union Lohne 1920 e.V. | Badminton</title>
   <meta name="description" content="Offizielle Trainings- und Anwesenheitsverwaltung der Badminton-Abteilung des SV Union Lohne 1920 e.V.">
   <link rel="stylesheet" href="styles.css">
@@ -16,6 +17,10 @@
 
   <!-- Toast Notification -->
   <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+  <div id="demoBanner" role="status" style="display: none; background: var(--gray-900); color: #fff; text-align: center; font-size: 0.8rem; font-weight: 700; padding: 6px 12px;">
+    ⚠ Demo-Modus: Beispieldaten, nichts wird gespeichert.
+  </div>
 
   <!-- Header with SV Union Lohne Corporate Design (Rot & Weiß) -->
   <header class="app-header">
@@ -34,7 +39,7 @@
         <span>👤</span>
         <span id="userName">Lade Profil...</span>
       </div>
-      <div>
+      <div id="personaWrap" style="display: none;">
         <select id="personaSelect" class="demo-selector" aria-label="Benutzer-Profil umschalten">
           <option value="anna">Anna Meier (Spieler)</option>
           <option value="ben">Ben Schmidt (Spieler)</option>

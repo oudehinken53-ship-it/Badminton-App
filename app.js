@@ -12,15 +12,18 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-const cfg = window.BADMINTON_CONFIG || {
-  gatewayUrl: 'https://gateway.example.com',
-  googleClientId: 'test.apps.googleusercontent.com'
-};
+const cfg = window.BADMINTON_CONFIG || {};
+
+// Demo data only by explicit config, or on a local dev server with ?demo=1. Never the default.
+const isLocalHost = ['localhost', '127.0.0.1'].includes(location.hostname);
+const demoMode = cfg.demoMode === true || (isLocalHost && new URLSearchParams(location.search).has('demo'));
+const isConfigured = Boolean(cfg.googleClientId && cfg.gatewayUrl) &&
+  !/REPLACE_WITH|YOUR-WORKER/.test(cfg.googleClientId + cfg.gatewayUrl);
 
 // Global App State
 const state = {
   activeTab: 'sessions',
-  persona: 'anna', // 'anna' | 'ben' | 'orga' | 'admin' | 'google'
+  persona: demoMode ? 'anna' : 'google', // 'anna' | 'ben' | 'orga' | 'admin' | 'google'
   currentUser: null,
   idToken: null,
   sessions: [],
@@ -104,6 +107,9 @@ const dom = {
   roleBadge: document.getElementById('roleBadge'),
   userName: document.getElementById('userName'),
   personaSelect: document.getElementById('personaSelect'),
+  personaWrap: document.getElementById('personaWrap'),
+  demoBanner: document.getElementById('demoBanner'),
+  currentYear: document.getElementById('currentYear'),
   googleAuthContainer: document.getElementById('googleAuthContainer'),
   googleButton: document.getElementById('googleButton'),
   playerRankSummary: document.getElementById('playerRankSummary'),
@@ -134,6 +140,32 @@ function showToast(message, duration = 3000) {
   setTimeout(() => dom.toast.classList.remove('show'), duration);
 }
 
+// Everything that ends up in innerHTML goes through here
+function esc(value) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return String(value).replace(/[&<>"']/g, c => map[c]);
+}
+
+const ERROR_MESSAGES = {
+  UNAUTHENTICATED: 'Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.',
+  UNLINKED_ACCOUNT: 'Dein Google-Konto ist noch keinem Spieler zugeordnet. Bitte wende dich an den Admin.',
+  FORBIDDEN: 'Dafür fehlt dir die Berechtigung.',
+  SESSION_NOT_OPEN: 'Dieser Termin ist nicht mehr offen. Nichts wurde gespeichert.',
+  SESSION_ALREADY_CLOSED: 'Dieser Termin ist bereits abgeschlossen. Nichts wurde gespeichert.',
+  SESSION_NOT_FOUND: 'Dieser Termin wurde nicht gefunden.',
+  PLAYER_NOT_FOUND: 'Dieser Spieler wurde nicht gefunden oder ist nicht aktiv.',
+  RECOVERY_REQUIRED: 'Der Abschluss ist unvollständig und wurde gestoppt. Punkte prüfen, bitte den Admin informieren.',
+  UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar. Nichts wurde gespeichert.',
+  NETWORK: 'Keine Verbindung zum Server. Nichts wurde gespeichert.'
+};
+
+function apiError(code, subject) {
+  const err = new Error(ERROR_MESSAGES[code] || `Unerwarteter Fehler (${code}). Nichts wurde gespeichert.`);
+  err.code = code;
+  err.subject = subject;
+  return err;
+}
+
 // API Dispatcher (Mock vs Gateway)
 async function callApi(action, data = {}) {
   // Demo Mode: run local mock backend
@@ -143,19 +175,33 @@ async function callApi(action, data = {}) {
 
   // Live Gateway Mode
   if (!state.idToken) {
-    throw new Error('Bitte melde dich zuerst über Google an.');
+    throw apiError('UNAUTHENTICATED');
   }
 
-  const response = await fetch(cfg.gatewayUrl.replace(/\/$/, '') + '/api', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, data, idToken: state.idToken }),
-    cache: 'no-store'
-  });
+  let response;
+  try {
+    response = await fetch(cfg.gatewayUrl.replace(/\/$/, '') + '/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data, idToken: state.idToken }),
+      cache: 'no-store'
+    });
+  } catch {
+    throw apiError('NETWORK');
+  }
 
-  const result = await response.json();
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw apiError('BACKEND_ERROR');
+  }
   if (!response.ok || !result.ok) {
-    throw new Error(result.code || 'BACKEND_ERROR');
+    if (result.code === 'UNAUTHENTICATED') {
+      state.idToken = null;
+      showSignedOut(ERROR_MESSAGES.UNAUTHENTICATED);
+    }
+    throw apiError(result.code || 'BACKEND_ERROR', result.ownGoogleSub);
   }
   return result.data;
 }
@@ -191,8 +237,8 @@ async function runMockApi(action, data) {
 
     case 'setRegistration': {
       const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
-      if (!session) throw new Error('SESSION_NOT_FOUND');
-      if (session.status !== 'OPEN') throw new Error('SESSION_NOT_OPEN');
+      if (!session) throw apiError('SESSION_NOT_FOUND');
+      if (session.status !== 'OPEN') throw apiError('SESSION_NOT_OPEN');
 
       const current = session.registrations[user.playerId];
       const newState = data.state;
@@ -233,7 +279,7 @@ async function runMockApi(action, data) {
 
     case 'getSessionRoster': {
       const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
-      if (!session) throw new Error('SESSION_NOT_FOUND');
+      if (!session) throw apiError('SESSION_NOT_FOUND');
       const roster = Object.values(mockDb.users).map(u => ({
         playerId: u.playerId,
         firstName: u.firstName,
@@ -246,14 +292,15 @@ async function runMockApi(action, data) {
 
     case 'setAttendance': {
       const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
-      if (!session) throw new Error('SESSION_NOT_FOUND');
+      if (!session) throw apiError('SESSION_NOT_FOUND');
+      if (session.status !== 'OPEN') throw apiError('SESSION_NOT_OPEN');
       session.attendance[data.playerId] = data.state;
       return { sessionId: data.sessionId, playerId: data.playerId, state: data.state };
     }
 
     case 'closeSession': {
       const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
-      if (!session) throw new Error('SESSION_NOT_FOUND');
+      if (!session) throw apiError('SESSION_NOT_FOUND');
       session.status = 'CLOSED';
 
       // Award points
@@ -276,7 +323,7 @@ async function runMockApi(action, data) {
     }
 
     default:
-      throw new Error('UNKNOWN_ACTION');
+      throw apiError('UNKNOWN_ACTION');
   }
 }
 
@@ -290,6 +337,7 @@ function switchTab(tabName) {
     content.classList.toggle('active', content.id === `tab-${tabName}`);
   });
 
+  if (!state.currentUser) return;
   if (tabName === 'sessions') loadSessions();
   if (tabName === 'preferences') loadPreferences();
   if (tabName === 'leaderboard') loadLeaderboard();
@@ -312,6 +360,20 @@ dom.personaSelect.addEventListener('change', async e => {
   }
 });
 
+// Nobody signed in: no data on screen, a clear message instead
+function showSignedOut(message, detail) {
+  state.currentUser = null;
+  dom.userName.textContent = 'Nicht angemeldet';
+  dom.roleBadge.textContent = 'Gast';
+  dom.adminNavTab.style.display = 'none';
+  dom.playerRankSummary.replaceChildren();
+  dom.googleAuthContainer.style.display = state.persona === 'google' && (isConfigured || demoMode) ? 'block' : 'none';
+  if (state.activeTab === 'admin') switchTab('sessions');
+  dom.sessionList.innerHTML = `
+    <p style="color: var(--gray-600); text-align: center; padding: 24px;">${esc(message)}${detail ? `<br><small>${esc(detail)}</small>` : ''}</p>
+  `;
+}
+
 // Init User Profile
 async function initUser() {
   try {
@@ -326,7 +388,7 @@ async function initUser() {
 
     await loadSessions();
   } catch (err) {
-    showToast(`Fehler beim Laden: ${err.message}`);
+    showSignedOut(err.message, err.code === 'UNLINKED_ACCOUNT' && err.subject ? `Deine Konto-Kennung für den Admin: ${err.subject}` : '');
   }
 }
 
@@ -340,7 +402,7 @@ async function loadSessions() {
     state.sessions = sessions;
     renderSessions(sessions);
   } catch (err) {
-    dom.sessionList.innerHTML = `<p style="color: var(--danger);">Fehler: ${err.message}</p>`;
+    dom.sessionList.innerHTML = `<p style="color: var(--danger);">Fehler: ${esc(err.message)}</p>`;
   }
 }
 
@@ -409,7 +471,7 @@ function renderPlayerRankSummary(standings, currentYear) {
 
 function formatDate(isoDate) {
   const [yyyy, mm, dd] = isoDate.split('-');
-  const dateObj = new Date(isoDate);
+  const dateObj = new Date(`${isoDate}T12:00:00`);
   const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const dayName = weekdays[dateObj.getDay()];
   return `${dayName} ${dd}.${mm}.${yyyy}`;
@@ -426,13 +488,19 @@ function renderSessions(sessions) {
   sessions.forEach(session => {
     const card = document.createElement('article');
     const regClass = session.myRegistration ? session.myRegistration.toLowerCase() : '';
-    card.className = `session-card ${session.status === 'CLOSED' ? 'closed' : regClass}`;
+    card.className = `session-card ${session.status !== 'OPEN' ? 'closed' : regClass}`;
 
     let badgeClass = 'badge-undecided';
     let badgeLabel = 'Nicht reagiert';
     if (session.status === 'CLOSED') {
       badgeClass = 'badge-closed';
       badgeLabel = 'Abgeschlossen';
+    } else if (session.status === 'CANCELED') {
+      badgeClass = 'badge-closed';
+      badgeLabel = 'Abgesagt';
+    } else if (session.status === 'CLOSING') {
+      badgeClass = 'badge-closed';
+      badgeLabel = 'Wird abgeschlossen';
     } else if (session.myRegistration === 'CONFIRMED') {
       badgeClass = 'badge-confirmed';
       badgeLabel = '✓ Angemeldet';
@@ -449,15 +517,15 @@ function renderSessions(sessions) {
     card.innerHTML = `
       <div class="session-header">
         <div>
-          <div class="session-date">${formatDate(session.dateLocal)}</div>
-          <div class="session-venue">📍 Halle ${session.venue} &bull; ${session.startLocal} - ${session.endLocal} Uhr</div>
+          <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
+          <div class="session-venue">📍 Halle ${esc(session.venue)} &bull; ${esc(session.startLocal)} - ${esc(session.endLocal)} Uhr</div>
         </div>
         <span class="session-status-badge ${badgeClass}">${badgeLabel}</span>
       </div>
 
       <div class="registration-count-box">
         <span class="count-icon">👥</span>
-        <span class="count-text"><strong class="count-number">${session.confirmedCount}</strong> ${regLabel}</span>
+        <span class="count-text"><strong class="count-number">${esc(session.confirmedCount)}</strong> ${regLabel}</span>
       </div>
 
       ${session.status === 'OPEN' ? `
@@ -469,7 +537,7 @@ function renderSessions(sessions) {
             ✗ Absagen
           </button>
         </div>
-      ` : '<p style="font-size: 0.8rem; color: var(--gray-600); margin-top: 8px;">Dieser Spieltag ist bereits abgeschlossen.</p>'}
+      ` : `<p style="font-size: 0.8rem; color: var(--gray-600); margin-top: 8px;">${badgeLabel}: keine Änderung mehr möglich.</p>`}
     `;
 
     // 1-Click Handlers with Loading State
@@ -532,11 +600,11 @@ dom.savePreferencesBtn.addEventListener('click', async () => {
 // Leaderboard Tab
 async function loadLeaderboard() {
   try {
-    const data = await callApi('getLeaderboard', { seasonYear: '2026' });
+    const data = await callApi('getLeaderboard', { seasonYear: String(new Date().getFullYear()) });
     state.leaderboard = data.standings;
     renderLeaderboard(data.standings);
   } catch (err) {
-    dom.leaderboardBody.innerHTML = `<tr><td colspan="3" style="color: var(--danger);">Fehler: ${err.message}</td></tr>`;
+    dom.leaderboardBody.innerHTML = `<tr><td colspan="3" style="color: var(--danger);">Fehler: ${esc(err.message)}</td></tr>`;
   }
 }
 
@@ -560,8 +628,8 @@ function renderLeaderboard(standings) {
 
     tr.innerHTML = `
       <td><span class="rank-badge ${rankClass}">${rankDisplay}</span></td>
-      <td>${item.firstName} ${item.lastName} ${isMe ? '<strong>(Du)</strong>' : ''}</td>
-      <td style="text-align: right; font-weight: 700;">${item.points}</td>
+      <td>${esc(item.firstName)} ${esc(item.lastName)} ${isMe ? '<strong>(Du)</strong>' : ''}</td>
+      <td style="text-align: right; font-weight: 700;">${esc(item.points)}</td>
     `;
     dom.leaderboardBody.append(tr);
   });
@@ -593,16 +661,24 @@ async function loadRoster(sessionId) {
     const data = await callApi('getSessionRoster', { sessionId });
     renderRoster(sessionId, data.roster, data.session);
   } catch (err) {
-    dom.orgaRosterContainer.innerHTML = `<p style="color: var(--danger);">Fehler: ${err.message}</p>`;
+    dom.orgaRosterContainer.innerHTML = `<p style="color: var(--danger);">Fehler: ${esc(err.message)}</p>`;
   }
 }
 
 function renderRoster(sessionId, roster, session) {
   dom.orgaRosterContainer.replaceChildren();
 
-  const isClosed = session.status === 'CLOSED';
-  dom.closeSessionBtn.disabled = isClosed;
-  dom.closeSessionBtn.textContent = isClosed ? '✓ Spieltag bereits abgeschlossen' : '🔒 Spieltag abschließen & Punkte gutschreiben';
+  // Attendance is frozen as soon as closing has started, a started close can only be continued
+  const isClosed = session.status !== 'OPEN';
+  const closeLabels = {
+    OPEN: '🔒 Spieltag abschließen & Punkte gutschreiben',
+    CLOSING: '🔁 Abschluss fortsetzen',
+    CLOSED: '✓ Spieltag bereits abgeschlossen',
+    CANCELED: 'Termin abgesagt',
+    PLANNED: 'Termin noch nicht geöffnet'
+  };
+  dom.closeSessionBtn.disabled = session.status !== 'OPEN' && session.status !== 'CLOSING';
+  dom.closeSessionBtn.textContent = closeLabels[session.status] || session.status;
 
   if (roster.length === 0) {
     dom.orgaRosterContainer.innerHTML = '<p style="color: var(--gray-600); font-size: 0.85rem;">Keine Anmeldungen für diesen Termin.</p>';
@@ -617,8 +693,8 @@ function renderRoster(sessionId, roster, session) {
 
     row.innerHTML = `
       <div>
-        <div style="font-weight: 600; font-size: 0.9rem;">${player.firstName} ${player.lastName}</div>
-        <div style="font-size: 0.75rem; color: var(--gray-600);">Status: ${player.registrationState}</div>
+        <div style="font-weight: 600; font-size: 0.9rem;">${esc(player.firstName)} ${esc(player.lastName)}</div>
+        <div style="font-size: 0.75rem; color: var(--gray-600);">Status: ${esc(player.registrationState)}</div>
       </div>
       <div>
         <button class="btn ${isPresent ? 'btn-confirm' : 'btn-decline'}" style="padding: 6px 12px; font-size: 0.8rem; min-height: 36px;" ${isClosed ? 'disabled' : ''}>
@@ -657,8 +733,8 @@ dom.closeSessionBtn.addEventListener('click', async () => {
     await loadSessions();
     await loadOrgaTab();
   } catch (err) {
-    showToast(`Fehler beim Abschluss: ${err.message}`);
-    dom.closeSessionBtn.disabled = false;
+    showToast(`Fehler beim Abschluss: ${err.message}`, 8000);
+    await loadRoster(sessionId);
   }
 });
 
@@ -682,8 +758,11 @@ dom.systemHealthBtn.addEventListener('click', async () => {
 });
 
 // Google Identity Services (GIS) Integration
+let signInReady = false;
+
 function initGoogleSignIn() {
-  if (!window.google?.accounts?.id) return;
+  if (signInReady || !window.google?.accounts?.id) return;
+  signInReady = true;
   window.google.accounts.id.initialize({
     client_id: cfg.googleClientId,
     callback: response => {
@@ -699,4 +778,28 @@ function initGoogleSignIn() {
 }
 
 // Start Application
-initUser();
+function startApp() {
+  dom.currentYear.textContent = String(new Date().getFullYear());
+
+  if (demoMode) {
+    dom.demoBanner.style.display = 'block';
+    dom.personaWrap.style.display = 'block';
+    initUser();
+    return;
+  }
+
+  if (!isConfigured) {
+    showSignedOut('Diese App ist noch nicht eingerichtet. Es werden keine Daten angezeigt oder gespeichert.');
+    return;
+  }
+
+  showSignedOut('Bitte melde dich mit deinem Google-Konto an.');
+  // The Google library loads async, it may arrive before or after this point
+  window.onGoogleLibraryLoad = initGoogleSignIn;
+  initGoogleSignIn();
+  setTimeout(() => {
+    if (!signInReady) showSignedOut('Die Google-Anmeldung konnte nicht geladen werden. Bitte lade die Seite neu.');
+  }, 8000);
+}
+
+startApp();
