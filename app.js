@@ -49,10 +49,7 @@ const mockDb = {
       startLocal: '19:30',
       endLocal: '22:30',
       status: 'OPEN',
-      capacity: 20,
       confirmedCount: 14,
-      waitlistedCount: 0,
-      availableCapacity: 6,
       registrations: { 'p-anna': 'CONFIRMED', 'p-ben': 'DECLINED' },
       attendance: { 'p-anna': 'PRESENT', 'p-ben': 'ABSENT' }
     },
@@ -64,10 +61,7 @@ const mockDb = {
       startLocal: '17:30',
       endLocal: '20:00',
       status: 'OPEN',
-      capacity: 20,
       confirmedCount: 8,
-      waitlistedCount: 0,
-      availableCapacity: 12,
       registrations: { 'p-anna': 'UNDECIDED', 'p-ben': 'CONFIRMED' },
       attendance: {}
     },
@@ -79,10 +73,7 @@ const mockDb = {
       startLocal: '20:00',
       endLocal: '22:00',
       status: 'OPEN',
-      capacity: 20,
       confirmedCount: 16,
-      waitlistedCount: 0,
-      availableCapacity: 4,
       registrations: { 'p-anna': 'CONFIRMED', 'p-ben': 'CONFIRMED' },
       attendance: {}
     }
@@ -244,10 +235,7 @@ async function runMockApi(action, data) {
           startLocal: s.startLocal,
           endLocal: s.endLocal,
           status: s.status,
-          capacity: s.capacity,
           confirmedCount: s.confirmedCount,
-          waitlistedCount: s.waitlistedCount,
-          availableCapacity: Math.max(0, s.capacity - s.confirmedCount),
           myRegistration: myReg
         };
       });
@@ -568,9 +556,6 @@ function renderSessions(sessions) {
     } else if (session.myRegistration === 'DECLINED') {
       badgeClass = 'badge-declined';
       badgeLabel = '✗ Abgemeldet';
-    } else if (session.myRegistration === 'WAITLISTED') {
-      badgeClass = 'badge-waitlisted';
-      badgeLabel = '⏳ Warteliste';
     }
 
     const regLabel = session.confirmedCount === 1 ? 'Anmeldung' : 'Anmeldungen';
@@ -612,7 +597,7 @@ function renderSessions(sessions) {
         btn.disabled = true;
         try {
           const res = await callApi('setRegistration', { sessionId: session.sessionId, state: stateToSet });
-          showToast(`Erfolgreich gespeichert: ${res.state === 'CONFIRMED' ? 'Zusage ✓' : res.state === 'WAITLISTED' ? 'Warteliste ⏳' : 'Absage ✗'}`);
+          showToast(`Erfolgreich gespeichert: ${res.state === 'CONFIRMED' ? 'Zusage ✓' : 'Absage ✗'}`);
           await loadSessions();
         } catch (err) {
           showToast(`Fehler: ${err.message}`);
