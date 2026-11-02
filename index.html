@@ -155,9 +155,41 @@
           <!-- Participant attendance checklist -->
         </div>
 
+        <div id="walkInBox" style="display: none; margin-top: 16px;">
+          <label for="walkInSelect" style="font-size: 0.85rem; font-weight: 600;">Ohne Anmeldung da:</label>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <select id="walkInSelect" class="demo-selector" style="flex: 1; min-width: 0; padding: 10px; font-size: 0.9rem;"></select>
+            <button id="walkInBtn" class="btn btn-confirm" style="flex: none;">✓ Anwesend</button>
+          </div>
+        </div>
+
         <button id="closeSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 18px; background-color: var(--gray-900);">
           🔒 Spieltag abschließen & Punkte gutschreiben
         </button>
+
+        <div id="cancelSessionBox" style="display: none; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--gray-100);">
+          <label for="cancelReason" style="font-size: 0.85rem; font-weight: 600;">Termin absagen, Grund:</label>
+          <input id="cancelReason" type="text" maxlength="200" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;" placeholder="z. B. Halle gesperrt">
+          <button id="cancelSessionBtn" class="btn btn-decline" style="width: 100%; margin-top: 8px;">✗ Termin absagen</button>
+        </div>
+      </div>
+
+      <div class="pref-card" id="linkCard" style="display: none; margin-bottom: 16px;">
+        <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Konto-Zuordnung</h3>
+        <label for="linkPlayerSelect" style="font-size: 0.85rem; font-weight: 600;">Spieler:</label>
+        <select id="linkPlayerSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+        <label for="linkSub" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Konto-Kennung (zeigt die App dem Spieler an):</label>
+        <input id="linkSub" type="text" maxlength="100" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+        <label for="linkRole" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Rolle:</label>
+        <select id="linkRole" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          <option value="PLAYER">Spieler</option>
+          <option value="ORGANIZER">Organisator</option>
+          <option value="ADMIN">Admin</option>
+        </select>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button id="linkBtn" class="btn btn-primary" style="flex: 1;">Zuordnen</button>
+          <button id="unlinkBtn" class="btn btn-decline" style="flex: 1;">Zuordnung lösen</button>
+        </div>
       </div>
 
       <div class="pref-card" id="adminToolsCard">

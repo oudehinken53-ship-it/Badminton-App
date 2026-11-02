@@ -124,6 +124,18 @@ const dom = {
   closeSessionBtn: document.getElementById('closeSessionBtn'),
   generateSessionsBtn: document.getElementById('generateSessionsBtn'),
   systemHealthBtn: document.getElementById('systemHealthBtn'),
+  walkInBox: document.getElementById('walkInBox'),
+  walkInSelect: document.getElementById('walkInSelect'),
+  walkInBtn: document.getElementById('walkInBtn'),
+  cancelSessionBox: document.getElementById('cancelSessionBox'),
+  cancelReason: document.getElementById('cancelReason'),
+  cancelSessionBtn: document.getElementById('cancelSessionBtn'),
+  linkCard: document.getElementById('linkCard'),
+  linkPlayerSelect: document.getElementById('linkPlayerSelect'),
+  linkSub: document.getElementById('linkSub'),
+  linkRole: document.getElementById('linkRole'),
+  linkBtn: document.getElementById('linkBtn'),
+  unlinkBtn: document.getElementById('unlinkBtn'),
   navTabs: document.querySelectorAll('.nav-tab'),
   tabContents: document.querySelectorAll('.tab-content'),
   prefInputs: {
@@ -154,6 +166,12 @@ const ERROR_MESSAGES = {
   SESSION_ALREADY_CLOSED: 'Dieser Termin ist bereits abgeschlossen. Nichts wurde gespeichert.',
   SESSION_NOT_FOUND: 'Dieser Termin wurde nicht gefunden.',
   PLAYER_NOT_FOUND: 'Dieser Spieler wurde nicht gefunden oder ist nicht aktiv.',
+  INVALID_CANCEL_DATA: 'Bitte gib einen Grund für die Absage an.',
+  INVALID_LINK_DATA: 'Bitte prüfe Spieler, Konto-Kennung und Rolle.',
+  IDENTITY_ALREADY_LINKED: 'Dieses Konto ist bereits einem anderen Spieler zugeordnet.',
+  PLAYER_ALREADY_LINKED: 'Dieser Spieler hat bereits ein anderes Konto. Bitte löse zuerst die Zuordnung.',
+  IDENTITY_NOT_LINKED: 'Dieser Spieler hat keine aktive Zuordnung.',
+  SELF_LOCKOUT: 'Deinen eigenen Zugang kannst du nicht ändern.',
   RECOVERY_REQUIRED: 'Der Abschluss ist unvollständig und wurde gestoppt. Punkte prüfen, bitte den Admin informieren.',
   UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar. Nichts wurde gespeichert.',
   NETWORK: 'Keine Verbindung zum Server. Nichts wurde gespeichert.'
@@ -280,14 +298,21 @@ async function runMockApi(action, data) {
     case 'getSessionRoster': {
       const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
       if (!session) throw apiError('SESSION_NOT_FOUND');
-      const roster = Object.values(mockDb.users).map(u => ({
+      const isListed = u => session.registrations[u.playerId] || session.attendance[u.playerId];
+      const users = Object.values(mockDb.users);
+      const roster = users.filter(isListed).map(u => ({
         playerId: u.playerId,
         firstName: u.firstName,
         lastName: u.lastName,
         registrationState: session.registrations[u.playerId] || 'UNDECIDED',
         attendanceState: session.attendance[u.playerId] || 'UNKNOWN'
       }));
-      return { session, roster };
+      const otherPlayers = users.filter(u => !isListed(u)).map(u => ({
+        playerId: u.playerId,
+        firstName: u.firstName,
+        lastName: u.lastName
+      }));
+      return { session, roster, otherPlayers };
     }
 
     case 'setAttendance': {
@@ -312,6 +337,42 @@ async function runMockApi(action, data) {
         }
       });
       return { sessionId: session.sessionId, status: 'CLOSED', awardedCount: awarded };
+    }
+
+    case 'cancelSession': {
+      const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
+      if (!session) throw apiError('SESSION_NOT_FOUND');
+      if (!String(data.reason || '').trim()) throw apiError('INVALID_CANCEL_DATA');
+      if (session.status !== 'OPEN') throw apiError('SESSION_NOT_OPEN');
+      session.status = 'CANCELED';
+      return { sessionId: session.sessionId, status: 'CANCELED' };
+    }
+
+    case 'listPlayerLinks': {
+      const players = Object.values(mockDb.users).map(u => {
+        const role = u.linked === false ? '' : u.role;
+        return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, linked: u.linked !== false, role };
+      });
+      return { players };
+    }
+
+    case 'linkIdentity': {
+      const target = Object.values(mockDb.users).find(u => u.playerId === data.playerId);
+      if (!target) throw apiError('PLAYER_NOT_FOUND');
+      if (!data.providerSub || !data.role) throw apiError('INVALID_LINK_DATA');
+      if (target.playerId === user.playerId) throw apiError('SELF_LOCKOUT');
+      target.linked = true;
+      target.role = data.role;
+      return { playerId: target.playerId, role: data.role, linked: true };
+    }
+
+    case 'unlinkIdentity': {
+      const target = Object.values(mockDb.users).find(u => u.playerId === data.playerId);
+      if (!target) throw apiError('PLAYER_NOT_FOUND');
+      if (target.playerId === user.playerId) throw apiError('SELF_LOCKOUT');
+      if (target.linked === false) throw apiError('IDENTITY_NOT_LINKED');
+      target.linked = false;
+      return { playerId: target.playerId, linked: false };
     }
 
     case 'generateSessions': {
@@ -650,6 +711,27 @@ async function loadOrgaTab() {
   if (state.sessions.length > 0) {
     await loadRoster(state.sessions[0].sessionId);
   }
+
+  const isAdmin = state.currentUser?.role === 'ADMIN';
+  dom.linkCard.style.display = isAdmin ? 'block' : 'none';
+  if (isAdmin) await loadPlayerLinks();
+}
+
+async function loadPlayerLinks() {
+  try {
+    const { players } = await callApi('listPlayerLinks');
+    const selected = dom.linkPlayerSelect.value;
+    dom.linkPlayerSelect.replaceChildren();
+    players.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.playerId;
+      opt.textContent = `${p.firstName} ${p.lastName} (${p.linked ? p.role : 'nicht zugeordnet'})`;
+      dom.linkPlayerSelect.append(opt);
+    });
+    if (selected) dom.linkPlayerSelect.value = selected;
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+  }
 }
 
 dom.orgaSessionSelect.addEventListener('change', e => {
@@ -659,13 +741,13 @@ dom.orgaSessionSelect.addEventListener('change', e => {
 async function loadRoster(sessionId) {
   try {
     const data = await callApi('getSessionRoster', { sessionId });
-    renderRoster(sessionId, data.roster, data.session);
+    renderRoster(sessionId, data.roster, data.session, data.otherPlayers || []);
   } catch (err) {
     dom.orgaRosterContainer.innerHTML = `<p style="color: var(--danger);">Fehler: ${esc(err.message)}</p>`;
   }
 }
 
-function renderRoster(sessionId, roster, session) {
+function renderRoster(sessionId, roster, session, otherPlayers) {
   dom.orgaRosterContainer.replaceChildren();
 
   // Attendance is frozen as soon as closing has started, a started close can only be continued
@@ -679,6 +761,18 @@ function renderRoster(sessionId, roster, session) {
   };
   dom.closeSessionBtn.disabled = session.status !== 'OPEN' && session.status !== 'CLOSING';
   dom.closeSessionBtn.textContent = closeLabels[session.status] || session.status;
+
+  dom.walkInBox.style.display = session.status === 'OPEN' && otherPlayers.length > 0 ? 'block' : 'none';
+  dom.walkInSelect.replaceChildren();
+  otherPlayers.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.playerId;
+    opt.textContent = `${p.firstName} ${p.lastName}`;
+    dom.walkInSelect.append(opt);
+  });
+
+  const canCancel = state.currentUser?.role === 'ADMIN' && (session.status === 'OPEN' || session.status === 'PLANNED');
+  dom.cancelSessionBox.style.display = canCancel ? 'block' : 'none';
 
   if (roster.length === 0) {
     dom.orgaRosterContainer.innerHTML = '<p style="color: var(--gray-600); font-size: 0.85rem;">Keine Anmeldungen für diesen Termin.</p>';
@@ -735,6 +829,76 @@ dom.closeSessionBtn.addEventListener('click', async () => {
   } catch (err) {
     showToast(`Fehler beim Abschluss: ${err.message}`, 8000);
     await loadRoster(sessionId);
+  }
+});
+
+dom.walkInBtn.addEventListener('click', async () => {
+  const sessionId = dom.orgaSessionSelect.value;
+  dom.walkInBtn.disabled = true;
+  try {
+    await callApi('setAttendance', { sessionId, playerId: dom.walkInSelect.value, state: 'PRESENT' });
+    await loadRoster(sessionId);
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+  } finally {
+    dom.walkInBtn.disabled = false;
+  }
+});
+
+dom.cancelSessionBtn.addEventListener('click', async () => {
+  const reason = dom.cancelReason.value.trim();
+  if (!reason) {
+    showToast(ERROR_MESSAGES.INVALID_CANCEL_DATA);
+    return;
+  }
+  if (!confirm('Möchtest du diesen Termin wirklich absagen? Anmeldungen bleiben gespeichert, Zu- und Absagen sind danach nicht mehr möglich.')) {
+    return;
+  }
+  dom.cancelSessionBtn.disabled = true;
+  try {
+    await callApi('cancelSession', { sessionId: dom.orgaSessionSelect.value, reason });
+    dom.cancelReason.value = '';
+    showToast('Termin abgesagt.');
+    await loadSessions();
+    await loadOrgaTab();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+  } finally {
+    dom.cancelSessionBtn.disabled = false;
+  }
+});
+
+dom.linkBtn.addEventListener('click', async () => {
+  dom.linkBtn.disabled = true;
+  try {
+    await callApi('linkIdentity', {
+      providerSub: dom.linkSub.value.trim(),
+      playerId: dom.linkPlayerSelect.value,
+      role: dom.linkRole.value
+    });
+    dom.linkSub.value = '';
+    showToast('Konto zugeordnet.');
+    await loadPlayerLinks();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+  } finally {
+    dom.linkBtn.disabled = false;
+  }
+});
+
+dom.unlinkBtn.addEventListener('click', async () => {
+  if (!confirm('Zuordnung wirklich lösen? Der Spieler kann sich danach nicht mehr anmelden, bis du das Konto neu zuordnest.')) {
+    return;
+  }
+  dom.unlinkBtn.disabled = true;
+  try {
+    await callApi('unlinkIdentity', { playerId: dom.linkPlayerSelect.value });
+    showToast('Zuordnung gelöst.');
+    await loadPlayerLinks();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+  } finally {
+    dom.unlinkBtn.disabled = false;
   }
 });
 
