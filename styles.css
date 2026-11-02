@@ -1,0 +1,732 @@
+:root {
+  /* ========================================================
+     1. Brand Colors (SV Union Lohne 1920 e.V. Rot & Weiß)
+     ======================================================== */
+  --union-red: #E1031F;            /* Primary Brand Color: Exakt aus Vereinslogo gesampelt (#E1031F) */
+  --union-red-hover: #C0021A;      /* Dunklere Nuance für Hover/Klick-Zustände */
+  --union-red-dark: #9B0215;       /* Kontrastrand */
+  --union-red-light: #FDE8EA;      /* Zarter Rot-Ton für Badges und Hervorhebungen */
+  --union-red-subtle: #FFF5F6;     /* Subtiler Hintergrund für markierte Zeilen */
+  --union-white: #FFFFFF;          /* Base Brand Color: Weiß */
+
+  --color-brand-primary: var(--union-red);
+  --color-brand-primary-hover: var(--union-red-hover);
+  --color-brand-white: var(--union-white);
+
+  /* ========================================================
+     2. Semantic Status & Functional Colors (Web Standards)
+     ======================================================== */
+  /* Info (Information, Ausrufezeichen, Hilfetexte, Orientierung) */
+  --info-blue: #0284c7;            /* Vertrautes Info-/Ausrufezeichen-Blau */
+  --info-blue-hover: #0369a1;
+  --info-blue-light: #e0f2fe;      /* Hintergrund für Info-Boxen */
+  --info-blue-border: #7dd3fc;     /* Rand für Info-Boxen */
+  --color-status-info: var(--info-blue);
+
+  /* Success (Erfolg, Bestätigung, Zusagen, Häkchen) */
+  --success-green: #16a34a;        /* Bestätigungs-Grün für "Zusagen" */
+  --success-green-hover: #15803d;  /* Kontrast 4.8:1 mit weißem Text */
+  --success-green-light: #dcfce7;
+  --success-green-border: #86efac;
+  --color-status-success: var(--success-green);
+
+  /* Warning (Warnung, Warteliste, Aufmerksamkeit, Vorsicht) */
+  --warning-amber: #d97706;        /* Warn-Orange für Warteliste & begrenzte Plätze */
+  --warning-amber-light: #fef3c7;
+  --warning-amber-border: #fde68a;
+  --color-status-warning: var(--warning-amber);
+
+  /* Danger / Destructive (Fehler, Stopp, Absage, Löschen) */
+  --danger-red: var(--union-red);  /* Signal-/Absage-Rot im Vereins-Rot */
+  --danger-light: var(--union-red-light);
+  --color-status-danger: var(--danger-red);
+
+  /* ========================================================
+     3. Neutral Tones (Typography & Surfaces)
+     ======================================================== */
+  --gray-50: #f8fafc;              /* Entspannter Hintergrund für Mobilgeräte */
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;             /* Ränder und Trennlinien */
+  --gray-300: #cbd5e1;
+  --gray-600: #475569;
+  --gray-700: #334155;             /* Fließtext (Kontrast 8.9:1 auf weiß) */
+  --gray-800: #1e293b;
+  --gray-900: #0f172a;             /* Überschriften & Haupttitel */
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--gray-50);
+  color: var(--gray-700);
+  line-height: 1.5;
+  padding-bottom: 85px;
+}
+
+/* Header in strahlendem SV Union Lohne Rot-Weiß */
+header.app-header {
+  background: linear-gradient(135deg, var(--union-red) 0%, #c5031b 100%);
+  color: var(--union-white);
+  padding: 12px 16px 14px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow);
+  border-bottom: 3px solid var(--union-red-dark);
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.club-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: var(--union-white);
+  border-radius: 50%;
+  padding: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  border: 2px solid var(--union-white);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.club-name {
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--union-white);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.club-dept {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.badge-role {
+  font-size: 0.7rem;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: var(--union-white);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.user-bar {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.user-info-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--union-white);
+}
+
+.demo-selector {
+  background: var(--union-white);
+  color: var(--gray-800);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* Info-Box (Typisches Web-Blau mit Ausrufezeichen / WCAG AA Kontrast) */
+.info-banner {
+  background-color: var(--info-blue-light);
+  border: 1.5px solid var(--info-blue-border);
+  border-left: 5px solid var(--info-blue);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.info-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--info-blue);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.info-content {
+  font-size: 0.85rem;
+  color: #0c4a6e;
+  line-height: 1.4;
+}
+
+.info-title {
+  font-weight: 800;
+  color: #0369a1;
+  margin-bottom: 2px;
+}
+
+/* Bottom Navigation */
+nav.app-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--union-white);
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid var(--gray-200);
+  padding: 6px 0 8px 0;
+  z-index: 90;
+  box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.05);
+}
+
+.nav-tab {
+  background: none;
+  border: none;
+  color: var(--gray-600);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 12px;
+  cursor: pointer;
+  min-width: 68px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease;
+}
+
+.nav-tab .icon {
+  font-size: 1.25rem;
+}
+
+.nav-tab.active {
+  color: var(--union-red);
+}
+
+/* Container & Sections */
+main.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+section.tab-content {
+  display: none;
+}
+
+section.tab-content.active {
+  display: block;
+}
+
+h2.section-title {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--gray-900);
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Session Cards mit Dual Coding (Icon + Text + Farbstreifen) */
+.session-card {
+  background: var(--union-white);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--gray-200);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.session-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 5px;
+  background-color: var(--gray-300);
+}
+
+.session-card.confirmed::before {
+  background-color: var(--success-green);
+}
+
+.session-card.declined::before {
+  background-color: var(--danger-red);
+}
+
+.session-card.waitlisted::before {
+  background-color: var(--warning-amber);
+}
+
+.session-card.closed {
+  background-color: var(--gray-100);
+  opacity: 0.92;
+}
+
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.session-date {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--gray-900);
+}
+
+.session-venue {
+  font-size: 0.85rem;
+  color: var(--gray-600);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.session-status-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.badge-confirmed {
+  background-color: var(--success-green-light);
+  color: #15803d;
+  border: 1px solid var(--success-green-border);
+}
+
+.badge-declined {
+  background-color: var(--danger-light);
+  color: #b91c1c;
+  border: 1px solid rgba(225, 3, 31, 0.25);
+}
+
+.badge-waitlisted {
+  background-color: var(--warning-amber-light);
+  color: #b45309;
+  border: 1px solid var(--warning-amber-border);
+}
+
+.badge-undecided {
+  background-color: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.badge-closed {
+  background-color: var(--gray-200);
+  color: var(--gray-700);
+}
+
+/* Player Personal Rank Banner in Trainings-Tab */
+.player-rank-summary {
+  margin-bottom: 20px;
+}
+
+.player-rank-card {
+  background: linear-gradient(135deg, var(--union-white) 0%, #fff8f9 100%);
+  border: 1.5px solid rgba(225, 3, 31, 0.2);
+  border-left: 5px solid var(--union-red);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.player-rank-card:hover, .player-rank-card:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+  outline: 2px solid var(--union-red);
+}
+
+.player-rank-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-rank-icon {
+  font-size: 2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-rank-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.player-rank-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-600);
+}
+
+.player-rank-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 1.05rem;
+}
+
+.player-rank-place {
+  font-weight: 900;
+  color: var(--union-red);
+}
+
+.player-rank-dot {
+  color: var(--gray-300);
+}
+
+.player-rank-points {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+
+.player-rank-cta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--union-red);
+  background: var(--union-red-light);
+  border: 1px solid rgba(225, 3, 31, 0.25);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Registration count box (Nur Anzahl der Anmeldungen, keine Höchstzahl) */
+.registration-count-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  margin: 12px 0 4px 0;
+  font-size: 0.88rem;
+  color: var(--gray-700);
+}
+
+.registration-count-box .count-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.registration-count-box .count-number {
+  font-weight: 800;
+  color: var(--union-red);
+}
+
+/* Fallback Capacity bar */
+.capacity-bar-container {
+  margin: 12px 0;
+}
+
+.capacity-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--gray-600);
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.progress-track {
+  background: var(--gray-200);
+  border-radius: 9999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: var(--union-red);
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.progress-fill.full {
+  background: var(--warning-amber);
+}
+
+/* 1-Click Action Buttons mit barrierefreiem Touch-Target (>= 44px) */
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.btn {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px; /* Accessibility: >= 44px */
+  transition: all 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-confirm {
+  background-color: var(--success-green);
+  color: var(--union-white);
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.25);
+}
+
+.btn-confirm:hover:not(:disabled) {
+  background-color: var(--success-green-hover);
+}
+
+.btn-decline {
+  background-color: var(--union-white);
+  color: var(--danger-red);
+  border: 1.5px solid var(--danger-red);
+}
+
+.btn-decline:hover:not(:disabled) {
+  background-color: var(--danger-light);
+}
+
+.btn-primary {
+  background-color: var(--union-red);
+  color: var(--union-white);
+  box-shadow: 0 2px 4px rgba(225, 3, 31, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--union-red-hover);
+}
+
+/* Preferences Settings */
+.pref-card {
+  background: var(--union-white);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--gray-200);
+}
+
+.pref-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.pref-label {
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.pref-sub {
+  font-size: 0.8rem;
+  color: var(--gray-600);
+  font-weight: 600;
+}
+
+/* Toggle Switch in Rot-Weiß */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 30px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--gray-300);
+  transition: .25s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 4px;
+  bottom: 4px;
+  background-color: var(--union-white);
+  transition: .25s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+input:checked + .slider {
+  background-color: var(--union-red);
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+/* Leaderboard */
+.leaderboard-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--union-white);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--gray-200);
+}
+
+.leaderboard-table th {
+  background-color: var(--gray-100);
+  color: var(--gray-700);
+  padding: 12px 14px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  border-bottom: 2px solid var(--gray-200);
+}
+
+.leaderboard-table td {
+  padding: 14px;
+  border-top: 1px solid var(--gray-100);
+  font-size: 0.95rem;
+}
+
+.leaderboard-table tr.highlight-me {
+  background-color: var(--union-red-subtle);
+  border-left: 4px solid var(--union-red);
+  font-weight: 800;
+}
+
+.rank-badge {
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--gray-100);
+  font-size: 0.9rem;
+}
+
+.rank-1 { background: #fef08a; color: #854d0e; box-shadow: 0 1px 4px rgba(202, 138, 4, 0.3); }
+.rank-2 { background: #e2e8f0; color: #334155; }
+.rank-3 { background: #fed7aa; color: #9a3412; }
+
+/* Toast Messages */
+.toast {
+  position: fixed;
+  top: 85px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--gray-900);
+  color: var(--union-white);
+  padding: 10px 22px;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 200;
+}
+
+.toast.show {
+  opacity: 1;
+}

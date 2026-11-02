@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SV Union Lohne 1920 e.V. | Badminton</title>
+  <meta name="description" content="Offizielle Trainings- und Anwesenheitsverwaltung der Badminton-Abteilung des SV Union Lohne 1920 e.V.">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <meta name="theme-color" content="#E1031F">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+  <!-- Header with SV Union Lohne Corporate Design (Rot & Weiß) -->
+  <header class="app-header">
+    <div class="header-top">
+      <div class="brand-wrapper">
+        <img src="logo.png" alt="SV Union Lohne Badminton Logo" class="club-logo">
+        <div class="brand-text">
+          <span class="club-name">SV Union Lohne 1920 e.V.</span>
+          <span class="club-dept">Badminton</span>
+        </div>
+      </div>
+      <span id="roleBadge" class="badge-role">Spieler</span>
+    </div>
+    <div class="user-bar">
+      <div class="user-info-text">
+        <span>👤</span>
+        <span id="userName">Lade Profil...</span>
+      </div>
+      <div>
+        <select id="personaSelect" class="demo-selector" aria-label="Benutzer-Profil umschalten">
+          <option value="anna">Anna Meier (Spieler)</option>
+          <option value="ben">Ben Schmidt (Spieler)</option>
+          <option value="orga">Olaf Orga (Organisator)</option>
+          <option value="admin">Ada Admin (Administrator)</option>
+          <option value="google">Google Login</option>
+        </select>
+      </div>
+    </div>
+    <div id="googleAuthContainer" style="display: none; margin-top: 10px;">
+      <div id="googleButton"></div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Tab 1: Sessions (Trainings) -->
+    <section id="tab-sessions" class="tab-content active">
+      <!-- Player Ranking Position in Current Year (Trainingswertung) -->
+      <div id="playerRankSummary" class="player-rank-summary" aria-live="polite">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+      <h2 class="section-title">
+        <span>Kommende Trainings</span>
+        <button id="refreshSessionsBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
+      </h2>
+      <div id="sessionList" aria-live="polite">
+        <!-- Rendered by app.js -->
+      </div>
+    </section>
+
+    <!-- Tab 2: Preferences (Stammtage) -->
+    <section id="tab-preferences" class="tab-content">
+      <h2 class="section-title">Meine Stammspieltage</h2>
+      <div class="pref-card">
+        <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 16px;">
+          Aktiviere deine regelmäßigen Trainingstage. Du wirst dann bei jeder neuen Woche automatisch als Teilnehmer vorgemerkt.
+        </p>
+
+        <div class="pref-item">
+          <div>
+            <div class="pref-label">Montag (PARK)</div>
+            <div class="pref-sub">19:30 – 22:30 Uhr &bull; Halle PARK</div>
+          </div>
+          <label class="switch" aria-label="Montags-Training automatisch vormerken">
+            <input type="checkbox" id="pref-tpl-mo">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="pref-item">
+          <div>
+            <div class="pref-label">Dienstag (MZH)</div>
+            <div class="pref-sub">17:30 – 20:00 Uhr &bull; Mehrzweckhalle</div>
+          </div>
+          <label class="switch" aria-label="Dienstags-Training automatisch vormerken">
+            <input type="checkbox" id="pref-tpl-di">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="pref-item">
+          <div>
+            <div class="pref-label">Donnerstag (MZH)</div>
+            <div class="pref-sub">20:00 – 22:00 Uhr &bull; Mehrzweckhalle</div>
+          </div>
+          <label class="switch" aria-label="Donnerstags-Training automatisch vormerken">
+            <input type="checkbox" id="pref-tpl-do">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button id="savePreferencesBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+          ✓ Stammtage speichern
+        </button>
+      </div>
+    </section>
+
+    <!-- Tab 3: Leaderboard (Jahreswertung) -->
+    <section id="tab-leaderboard" class="tab-content">
+      <h2 class="section-title">
+        <span>Jahressieger <span id="currentYear">2026</span></span>
+        <button id="refreshLeaderboardBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
+      </h2>
+      <table class="leaderboard-table" aria-label="Rangliste Jahreswertung">
+        <thead>
+          <tr>
+            <th style="width: 50px;">Rang</th>
+            <th>Spieler</th>
+            <th style="text-align: right;">Teilnahmen</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+          <!-- Rendered by app.js -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Tab 4: Organizer & Admin Panel -->
+    <section id="tab-admin" class="tab-content">
+      <h2 class="section-title">Organisator & Admin</h2>
+      
+      <div class="pref-card" style="margin-bottom: 16px;">
+        <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Spieltag-Anwesenheit & Abschluss</h3>
+        <label for="orgaSessionSelect" style="font-size: 0.85rem; font-weight: 600;">Termin auswählen:</label>
+        <select id="orgaSessionSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          <!-- Sessions populated dynamically -->
+        </select>
+
+        <div id="orgaRosterContainer" style="margin-top: 16px;">
+          <!-- Participant attendance checklist -->
+        </div>
+
+        <button id="closeSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 18px; background-color: var(--gray-900);">
+          🔒 Spieltag abschließen & Punkte gutschreiben
+        </button>
+      </div>
+
+      <div class="pref-card" id="adminToolsCard">
+        <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Admin-Werkzeuge</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="generateSessionsBtn" class="btn btn-primary">
+            📅 Termine generieren (nächste 28 Tage)
+          </button>
+          <button id="systemHealthBtn" class="btn btn-decline">
+            ❤️ System-Gesundheitscheck prüfen
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="app-nav" aria-label="Hauptnavigation">
+    <button class="nav-tab active" data-tab="sessions">
+      <span class="icon">🏸</span>
+      <span>Trainings</span>
+    </button>
+    <button class="nav-tab" data-tab="preferences">
+      <span class="icon">⚙️</span>
+      <span>Stammtage</span>
+    </button>
+    <button class="nav-tab" data-tab="leaderboard">
+      <span class="icon">🏆</span>
+      <span>Jahressieger</span>
+    </button>
+    <button class="nav-tab" data-tab="admin" id="adminNavTab" style="display: none;">
+      <span class="icon">📋</span>
+      <span>Orga</span>
+    </button>
+  </nav>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
