@@ -119,6 +119,7 @@
       
       <div class="pref-card" style="margin-bottom: 16px;">
         <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Spieltag-Anwesenheit & Abschluss</h3>
+        <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 10px;">Wer zugesagt hat, zählt automatisch als anwesend. Gegen 23 Uhr schließt der Termin von selbst und die Punkte werden gebucht. Bis dahin kannst du hier korrigieren.</p>
         <label for="orgaSessionSelect" style="font-size: 0.85rem; font-weight: 600;">Termin auswählen:</label>
         <select id="orgaSessionSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
           <!-- Sessions populated dynamically -->
@@ -141,7 +142,7 @@
           </div>
         </div>
         <label for="editVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
-        <input id="editVenue" type="text" maxlength="30" list="venueList" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+        <select id="editVenue" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
           <button id="saveSessionBtn" class="btn btn-decline" style="width: 100%; margin-top: 10px;">Termin ändern</button>
         </div>
 
@@ -154,7 +155,7 @@
         </div>
 
         <button id="closeSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 18px; background-color: var(--gray-900);">
-          🔒 Spieltag abschließen & Punkte gutschreiben
+          🔒 Jetzt schon abschließen
         </button>
 
         <div id="cancelSessionBox" style="display: none; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--gray-100);">
@@ -179,7 +180,7 @@
           </div>
         </div>
         <label for="newVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
-        <input id="newVenue" type="text" maxlength="30" list="venueList" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+        <select id="newVenue" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
         <button id="createSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Termin anlegen</button>
       </div>
 
@@ -209,7 +210,14 @@
           </div>
         </div>
         <label for="templateVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
-        <input id="templateVenue" type="text" maxlength="30" list="venueList" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+        <select id="templateVenue" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+        <label for="templateTrainer" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Verantwortlicher Trainer:</label>
+        <select id="templateTrainer" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+        <label for="templateAudience" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Für:</label>
+        <select id="templateAudience" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          <option value="ADULT">Erwachsene</option>
+          <option value="YOUTH">Jugend</option>
+        </select>
         <label style="display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 0.85rem;">
           <input id="templateActive" type="checkbox"> Aktiv, neue Termine werden erzeugt
         </label>
@@ -218,8 +226,6 @@
         </label>
         <button id="saveTemplateBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Standardtermin speichern</button>
       </div>
-
-      <datalist id="venueList"></datalist>
 
       <div class="pref-card" id="linkCard" style="display: none; margin-bottom: 16px;">
         <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Zugänge</h3>

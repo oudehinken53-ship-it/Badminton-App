@@ -53,7 +53,8 @@ const state = {
   preferences: {},
   leaderboard: [],
   orgaRoster: [],
-  templates: []
+  templates: [],
+  trainers: []
 };
 
 // Mock In-Memory Backend (Deterministic Demo/Fallback)
@@ -103,9 +104,9 @@ const mockDb = {
     }
   ],
   templates: [
-    { templateId: 'tpl-mo', weekdayIso: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30', active: true },
-    { templateId: 'tpl-di', weekdayIso: 2, venue: 'MZH', startLocal: '17:30', endLocal: '20:00', active: true },
-    { templateId: 'tpl-do', weekdayIso: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00', active: true }
+    { templateId: 'tpl-mo', weekdayIso: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30', active: true, audience: 'ADULT', trainerPlayerId: 'p-orga' },
+    { templateId: 'tpl-di', weekdayIso: 2, venue: 'MZH', startLocal: '17:30', endLocal: '20:00', active: true, audience: 'ADULT', trainerPlayerId: '' },
+    { templateId: 'tpl-do', weekdayIso: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00', active: true, audience: 'ADULT', trainerPlayerId: '' }
   ],
   venues: ['PARK', 'MZH'],
   preferences: {
@@ -180,11 +181,12 @@ const dom = {
   templateStart: document.getElementById('templateStart'),
   templateEnd: document.getElementById('templateEnd'),
   templateVenue: document.getElementById('templateVenue'),
+  templateTrainer: document.getElementById('templateTrainer'),
+  templateAudience: document.getElementById('templateAudience'),
   templateActive: document.getElementById('templateActive'),
   templateApply: document.getElementById('templateApply'),
   templateApplyWrap: document.getElementById('templateApplyWrap'),
-  saveTemplateBtn: document.getElementById('saveTemplateBtn'),
-  venueList: document.getElementById('venueList')
+  saveTemplateBtn: document.getElementById('saveTemplateBtn')
 };
 
 // Toast Notification
@@ -291,6 +293,8 @@ async function runMockApi(action, data) {
           endLocal: s.endLocal,
           status: s.status,
           confirmedCount: s.confirmedCount,
+          audience: s.audience || 'ADULT',
+          trainerName: s.trainerName || '',
           myRegistration: myReg
         };
       });
@@ -371,6 +375,11 @@ async function runMockApi(action, data) {
       if (!session) throw apiError('SESSION_NOT_FOUND');
       session.status = 'CLOSED';
 
+      // A confirmation counts as attendance unless a trainer set ABSENT
+      Object.keys(session.registrations).forEach(pId => {
+        if (session.registrations[pId] === 'CONFIRMED' && !session.attendance[pId]) session.attendance[pId] = 'PRESENT';
+      });
+
       // Award points
       let awarded = 0;
       Object.keys(session.attendance).forEach(pId => {
@@ -425,13 +434,13 @@ async function runMockApi(action, data) {
 
     case 'listTemplates': {
       const canManage = user.role !== 'PLAYER';
-      return { templates: mockDb.templates.filter(t => canManage || t.active), venues: [...mockDb.venues] };
+      const trainers = Object.values(mockDb.users).filter(u => u.role !== 'PLAYER').map(u => ({ playerId: u.playerId, name: u.firstName + ' ' + u.lastName }));
+      return { templates: mockDb.templates.filter(t => canManage || t.active), venues: [...mockDb.venues], trainers: canManage ? trainers : [] };
     }
 
     case 'saveTemplate': {
       if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
-      if (!data.venue || !data.startLocal || !data.endLocal || data.endLocal <= data.startLocal) throw apiError('INVALID_TEMPLATE_DATA');
-      if (!mockDb.venues.includes(data.venue)) mockDb.venues.push(data.venue);
+      if (!mockDb.venues.includes(data.venue) || !data.startLocal || !data.endLocal || data.endLocal <= data.startLocal) throw apiError('INVALID_TEMPLATE_DATA');
       const { templateId, applyToExisting, ...fields } = data;
       const existing = mockDb.templates.find(t => t.templateId === templateId);
       if (existing && existing.weekdayIso !== data.weekdayIso) throw apiError('INVALID_TEMPLATE_DATA');
@@ -440,7 +449,8 @@ async function runMockApi(action, data) {
         Object.assign(existing, fields);
         if (applyToExisting) {
           mockDb.sessions.filter(s => s.templateId === templateId && s.status === 'OPEN').forEach(s => {
-            Object.assign(s, { venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal });
+            const trainer = Object.values(mockDb.users).find(u => u.playerId === data.trainerPlayerId);
+            Object.assign(s, { venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, audience: data.audience, trainerName: trainer ? trainer.firstName + ' ' + trainer.lastName : '' });
             updatedSessions++;
           });
         }
@@ -663,6 +673,7 @@ function renderSessions(sessions) {
         <div>
           <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
           <div class="session-venue">📍 Halle ${esc(session.venue)} &bull; ${esc(session.startLocal)} - ${esc(session.endLocal)} Uhr</div>
+          ${session.audience === 'YOUTH' || session.trainerName ? `<div class="session-venue">${session.audience === 'YOUTH' ? '🧒 Jugend' : ''}${session.audience === 'YOUTH' && session.trainerName ? ' &bull; ' : ''}${session.trainerName ? `👤 Trainer: ${esc(session.trainerName)}` : ''}</div>` : ''}
         </div>
         <span class="session-status-badge ${badgeClass}">${badgeLabel}</span>
       </div>
@@ -803,6 +814,9 @@ dom.refreshLeaderboardBtn.addEventListener('click', () => loadLeaderboard());
 
 // Organizer & Admin Tab
 async function loadOrgaTab() {
+  // First the lists for the selection fields, the session form below needs them
+  await loadTemplates();
+
   dom.orgaSessionSelect.replaceChildren();
   state.sessions.forEach(s => {
     const opt = document.createElement('option');
@@ -823,12 +837,24 @@ async function loadOrgaTab() {
   const canManage = isAdmin || state.currentUser?.role === 'ORGANIZER';
   dom.newSessionCard.style.display = canManage ? 'block' : 'none';
   dom.templateCard.style.display = canManage ? 'block' : 'none';
-  if (canManage) await loadTemplates();
+}
+
+function fillSelect(select, entries) {
+  const selected = select.value;
+  select.replaceChildren();
+  entries.forEach(([value, text]) => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = text;
+    select.append(opt);
+  });
+  if (entries.some(([value]) => value === selected)) select.value = selected;
 }
 
 async function loadTemplates() {
   try {
-    const { templates, venues } = await callApi('listTemplates');
+    const { templates, venues, trainers } = await callApi('listTemplates');
+    state.trainers = trainers;
     state.templates = templates.sort((a, b) => a.weekdayIso - b.weekdayIso || a.startLocal.localeCompare(b.startLocal));
 
     const selected = dom.templateSelect.value;
@@ -836,7 +862,7 @@ async function loadTemplates() {
     state.templates.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.templateId;
-      opt.textContent = `${WEEKDAYS[t.weekdayIso]} ${t.startLocal}–${t.endLocal}, ${t.venue}${t.active ? '' : ' (inaktiv)'}`;
+      opt.textContent = `${WEEKDAYS[t.weekdayIso]} ${t.startLocal}–${t.endLocal}, ${t.venue}${t.audience === 'YOUTH' ? ', Jugend' : ''}${t.active ? '' : ' (inaktiv)'}`;
       dom.templateSelect.append(opt);
     });
     const fresh = document.createElement('option');
@@ -844,14 +870,10 @@ async function loadTemplates() {
     fresh.textContent = '+ Neuer Standardtermin';
     dom.templateSelect.append(fresh);
     if ([...dom.templateSelect.options].some(o => o.value === selected)) dom.templateSelect.value = selected;
+    const venueEntries = venues.map(code => [code, code]);
+    [dom.editVenue, dom.newVenue, dom.templateVenue].forEach(select => fillSelect(select, venueEntries));
+    fillSelect(dom.templateTrainer, [['', 'Kein Trainer'], ...trainers.map(t => [t.playerId, t.name])]);
     showTemplate();
-
-    dom.venueList.replaceChildren();
-    venues.forEach(code => {
-      const opt = document.createElement('option');
-      opt.value = code;
-      dom.venueList.append(opt);
-    });
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
   }
@@ -864,7 +886,9 @@ function showTemplate() {
   dom.templateWeekday.value = String(t ? t.weekdayIso : 1);
   dom.templateStart.value = t ? t.startLocal : '';
   dom.templateEnd.value = t ? t.endLocal : '';
-  dom.templateVenue.value = t ? t.venue : '';
+  dom.templateVenue.value = t ? t.venue : dom.templateVenue.options[0]?.value || '';
+  dom.templateTrainer.value = t ? t.trainerPlayerId : '';
+  dom.templateAudience.value = t ? t.audience : 'ADULT';
   dom.templateActive.checked = t ? t.active : true;
   dom.templateApply.checked = false;
   dom.templateApplyWrap.style.display = t ? 'flex' : 'none';
@@ -908,7 +932,7 @@ function renderRoster(sessionId, roster, session, otherPlayers) {
   // Attendance is frozen as soon as closing has started, a started close can only be continued
   const isClosed = session.status !== 'OPEN';
   const closeLabels = {
-    OPEN: '🔒 Spieltag abschließen & Punkte gutschreiben',
+    OPEN: '🔒 Jetzt schon abschließen',
     CLOSING: '🔁 Abschluss fortsetzen',
     CLOSED: '✓ Spieltag bereits abgeschlossen',
     CANCELED: 'Termin abgesagt',
@@ -943,7 +967,9 @@ function renderRoster(sessionId, roster, session, otherPlayers) {
     const row = document.createElement('div');
     row.style = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--gray-100);';
 
-    const isPresent = player.attendanceState === 'PRESENT';
+    // A confirmation counts as attendance unless a trainer set ABSENT
+    const isPresent = player.attendanceState === 'PRESENT' ||
+      (player.attendanceState === 'UNKNOWN' && player.registrationState === 'CONFIRMED');
 
     row.innerHTML = `
       <div>
@@ -976,7 +1002,7 @@ function renderRoster(sessionId, roster, session, otherPlayers) {
 
 dom.closeSessionBtn.addEventListener('click', async () => {
   const sessionId = dom.orgaSessionSelect.value;
-  if (!confirm('Möchtest du diesen Spieltag wirklich abschließen? Allen als anwesend markierten Spielern wird +1 Punkt gutgeschrieben.')) {
+  if (!confirm('Termin jetzt schon abschließen? Sonst geschieht das automatisch gegen 23 Uhr. Alle als anwesend Markierten bekommen +1 Punkt, danach sind keine Änderungen mehr möglich.')) {
     return;
   }
 
@@ -1100,7 +1126,6 @@ dom.createSessionBtn.addEventListener('click', async () => {
     dom.newDate.value = '';
     dom.newStart.value = '';
     dom.newEnd.value = '';
-    dom.newVenue.value = '';
     showToast('Termin angelegt.');
     await loadSessions();
     await loadOrgaTab();
@@ -1120,6 +1145,8 @@ dom.saveTemplateBtn.addEventListener('click', async () => {
       venue: dom.templateVenue.value.trim(),
       startLocal: dom.templateStart.value,
       endLocal: dom.templateEnd.value,
+      trainerPlayerId: dom.templateTrainer.value,
+      audience: dom.templateAudience.value,
       active: dom.templateActive.checked,
       applyToExisting: dom.templateApply.checked
     });
