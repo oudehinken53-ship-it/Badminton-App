@@ -42,7 +42,7 @@
         <select id="personaSelect" class="demo-selector" aria-label="Benutzer-Profil umschalten">
           <option value="anna">Anna Meier (Spieler)</option>
           <option value="ben">Ben Schmidt (Spieler)</option>
-          <option value="orga">Olaf Orga (Organisator)</option>
+          <option value="orga">Olaf Orga (Trainer)</option>
           <option value="admin">Ada Admin (Administrator)</option>
         </select>
       </div>
@@ -83,37 +83,8 @@
           Aktiviere deine regelmäßigen Trainingstage. Du wirst dann bei jeder neuen Woche automatisch als Teilnehmer vorgemerkt.
         </p>
 
-        <div class="pref-item">
-          <div>
-            <div class="pref-label">Montag (PARK)</div>
-            <div class="pref-sub">19:30 – 22:30 Uhr &bull; Halle PARK</div>
-          </div>
-          <label class="switch" aria-label="Montags-Training automatisch vormerken">
-            <input type="checkbox" id="pref-tpl-mo">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="pref-item">
-          <div>
-            <div class="pref-label">Dienstag (MZH)</div>
-            <div class="pref-sub">17:30 – 20:00 Uhr &bull; Mehrzweckhalle</div>
-          </div>
-          <label class="switch" aria-label="Dienstags-Training automatisch vormerken">
-            <input type="checkbox" id="pref-tpl-di">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="pref-item">
-          <div>
-            <div class="pref-label">Donnerstag (MZH)</div>
-            <div class="pref-sub">20:00 – 22:00 Uhr &bull; Mehrzweckhalle</div>
-          </div>
-          <label class="switch" aria-label="Donnerstags-Training automatisch vormerken">
-            <input type="checkbox" id="pref-tpl-do">
-            <span class="slider"></span>
-          </label>
+        <div id="prefList" aria-live="polite">
+          <!-- Rendered by app.js from the standard sessions -->
         </div>
 
         <button id="savePreferencesBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
@@ -144,7 +115,7 @@
 
     <!-- Tab 4: Organizer & Admin Panel -->
     <section id="tab-admin" class="tab-content">
-      <h2 class="section-title">Organisator & Admin</h2>
+      <h2 class="section-title">Trainer & Admin</h2>
       
       <div class="pref-card" style="margin-bottom: 16px;">
         <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Spieltag-Anwesenheit & Abschluss</h3>
@@ -155,6 +126,23 @@
 
         <div id="orgaRosterContainer" style="margin-top: 16px;">
           <!-- Participant attendance checklist -->
+        </div>
+
+        <div id="sessionEditBox" style="display: none; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--gray-100);">
+          <div style="font-size: 0.85rem; font-weight: 700;">Uhrzeit und Halle nur dieses Termins ändern:</div>
+          <div style="display: flex; gap: 8px;">
+          <div style="flex: 1; min-width: 0;">
+            <label for="editStart" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Beginn:</label>
+            <input id="editStart" type="time" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <label for="editEnd" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Ende:</label>
+            <input id="editEnd" type="time" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          </div>
+        </div>
+        <label for="editVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
+        <input id="editVenue" type="text" maxlength="30" list="venueList" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          <button id="saveSessionBtn" class="btn btn-decline" style="width: 100%; margin-top: 10px;">Termin ändern</button>
         </div>
 
         <div id="walkInBox" style="display: none; margin-top: 16px;">
@@ -176,6 +164,63 @@
         </div>
       </div>
 
+      <div class="pref-card" id="newSessionCard" style="display: none; margin-bottom: 16px;">
+        <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Zusätzlichen Termin anlegen</h3>
+        <label for="newDate" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Datum:</label>
+        <input id="newDate" type="date" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1; min-width: 0;">
+            <label for="newStart" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Beginn:</label>
+            <input id="newStart" type="time" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <label for="newEnd" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Ende:</label>
+            <input id="newEnd" type="time" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          </div>
+        </div>
+        <label for="newVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
+        <input id="newVenue" type="text" maxlength="30" list="venueList" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+        <button id="createSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Termin anlegen</button>
+      </div>
+
+      <div class="pref-card" id="templateCard" style="display: none; margin-bottom: 16px;">
+        <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Standardtermine</h3>
+        <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 8px;">Daraus entstehen automatisch die Termine der nächsten 4 Wochen.</p>
+        <label for="templateSelect" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Standardtermin:</label>
+        <select id="templateSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+        <label for="templateWeekday" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Wochentag:</label>
+        <select id="templateWeekday" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          <option value="1">Montag</option>
+          <option value="2">Dienstag</option>
+          <option value="3">Mittwoch</option>
+          <option value="4">Donnerstag</option>
+          <option value="5">Freitag</option>
+          <option value="6">Samstag</option>
+          <option value="7">Sonntag</option>
+        </select>
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1; min-width: 0;">
+            <label for="templateStart" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Beginn:</label>
+            <input id="templateStart" type="time" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <label for="templateEnd" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Ende:</label>
+            <input id="templateEnd" type="time" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+          </div>
+        </div>
+        <label for="templateVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
+        <input id="templateVenue" type="text" maxlength="30" list="venueList" autocomplete="off" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+        <label style="display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 0.85rem;">
+          <input id="templateActive" type="checkbox"> Aktiv, neue Termine werden erzeugt
+        </label>
+        <label id="templateApplyWrap" style="display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 0.85rem;">
+          <input id="templateApply" type="checkbox"> Auch auf schon erzeugte offene Termine anwenden
+        </label>
+        <button id="saveTemplateBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Standardtermin speichern</button>
+      </div>
+
+      <datalist id="venueList"></datalist>
+
       <div class="pref-card" id="linkCard" style="display: none; margin-bottom: 16px;">
         <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Zugänge</h3>
         <label for="linkPlayerSelect" style="font-size: 0.85rem; font-weight: 600;">Spieler:</label>
@@ -183,7 +228,7 @@
         <label for="linkRole" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Rolle:</label>
         <select id="linkRole" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
           <option value="PLAYER">Spieler</option>
-          <option value="ORGANIZER">Organisator</option>
+          <option value="ORGANIZER">Trainer</option>
           <option value="ADMIN">Admin</option>
         </select>
         <div style="display: flex; gap: 8px; margin-top: 12px;">
@@ -197,12 +242,9 @@
         </div>
       </div>
 
-      <div class="pref-card" id="adminToolsCard">
+      <div class="pref-card" id="adminToolsCard" style="display: none;">
         <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Admin-Werkzeuge</h3>
         <div style="display: flex; flex-direction: column; gap: 10px;">
-          <button id="generateSessionsBtn" class="btn btn-primary">
-            📅 Termine generieren (nächste 28 Tage)
-          </button>
           <button id="systemHealthBtn" class="btn btn-decline">
             ❤️ System-Gesundheitscheck prüfen
           </button>

@@ -40,6 +40,9 @@ function saveDeviceToken(token) {
   }
 }
 
+const ROLE_LABELS = { PLAYER: 'Spieler', ORGANIZER: 'Trainer', ADMIN: 'Admin' };
+const WEEKDAYS = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+
 // Global App State
 const state = {
   activeTab: 'sessions',
@@ -49,7 +52,8 @@ const state = {
   sessions: [],
   preferences: {},
   leaderboard: [],
-  orgaRoster: []
+  orgaRoster: [],
+  templates: []
 };
 
 // Mock In-Memory Backend (Deterministic Demo/Fallback)
@@ -98,6 +102,12 @@ const mockDb = {
       attendance: {}
     }
   ],
+  templates: [
+    { templateId: 'tpl-mo', weekdayIso: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30', active: true },
+    { templateId: 'tpl-di', weekdayIso: 2, venue: 'MZH', startLocal: '17:30', endLocal: '20:00', active: true },
+    { templateId: 'tpl-do', weekdayIso: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00', active: true }
+  ],
+  venues: ['PARK', 'MZH'],
   preferences: {
     'p-anna': { 'tpl-mo': true, 'tpl-di': false, 'tpl-do': true },
     'p-ben': { 'tpl-mo': false, 'tpl-di': true, 'tpl-do': false },
@@ -134,7 +144,6 @@ const dom = {
   orgaSessionSelect: document.getElementById('orgaSessionSelect'),
   orgaRosterContainer: document.getElementById('orgaRosterContainer'),
   closeSessionBtn: document.getElementById('closeSessionBtn'),
-  generateSessionsBtn: document.getElementById('generateSessionsBtn'),
   systemHealthBtn: document.getElementById('systemHealthBtn'),
   walkInBox: document.getElementById('walkInBox'),
   walkInSelect: document.getElementById('walkInSelect'),
@@ -152,11 +161,30 @@ const dom = {
   unlinkBtn: document.getElementById('unlinkBtn'),
   navTabs: document.querySelectorAll('.nav-tab'),
   tabContents: document.querySelectorAll('.tab-content'),
-  prefInputs: {
-    'tpl-mo': document.getElementById('pref-tpl-mo'),
-    'tpl-di': document.getElementById('pref-tpl-di'),
-    'tpl-do': document.getElementById('pref-tpl-do')
-  }
+  prefList: document.getElementById('prefList'),
+  adminToolsCard: document.getElementById('adminToolsCard'),
+  sessionEditBox: document.getElementById('sessionEditBox'),
+  editStart: document.getElementById('editStart'),
+  editEnd: document.getElementById('editEnd'),
+  editVenue: document.getElementById('editVenue'),
+  saveSessionBtn: document.getElementById('saveSessionBtn'),
+  newSessionCard: document.getElementById('newSessionCard'),
+  newDate: document.getElementById('newDate'),
+  newStart: document.getElementById('newStart'),
+  newEnd: document.getElementById('newEnd'),
+  newVenue: document.getElementById('newVenue'),
+  createSessionBtn: document.getElementById('createSessionBtn'),
+  templateCard: document.getElementById('templateCard'),
+  templateSelect: document.getElementById('templateSelect'),
+  templateWeekday: document.getElementById('templateWeekday'),
+  templateStart: document.getElementById('templateStart'),
+  templateEnd: document.getElementById('templateEnd'),
+  templateVenue: document.getElementById('templateVenue'),
+  templateActive: document.getElementById('templateActive'),
+  templateApply: document.getElementById('templateApply'),
+  templateApplyWrap: document.getElementById('templateApplyWrap'),
+  saveTemplateBtn: document.getElementById('saveTemplateBtn'),
+  venueList: document.getElementById('venueList')
 };
 
 // Toast Notification
@@ -182,6 +210,9 @@ const ERROR_MESSAGES = {
   SESSION_ALREADY_CLOSED: 'Dieser Termin ist bereits abgeschlossen. Nichts wurde gespeichert.',
   SESSION_NOT_FOUND: 'Dieser Termin wurde nicht gefunden.',
   PLAYER_NOT_FOUND: 'Dieser Spieler wurde nicht gefunden oder ist nicht aktiv.',
+  INVALID_SESSION_DATA: 'Bitte prüfe Datum, Halle und Uhrzeiten. Das Ende muss nach dem Beginn liegen.',
+  INVALID_TEMPLATE_DATA: 'Bitte prüfe Halle und Uhrzeiten. Der Wochentag eines Standardtermins lässt sich nicht ändern.',
+  TEMPLATE_NOT_FOUND: 'Dieser Standardtermin wurde nicht gefunden.',
   INVALID_CANCEL_DATA: 'Bitte gib einen Grund für die Absage an.',
   INVALID_INVITE_DATA: 'Bitte prüfe Spieler und Rolle.',
   IDENTITY_NOT_LINKED: 'Dieser Spieler hat keinen aktiven Zugang.',
@@ -391,8 +422,51 @@ async function runMockApi(action, data) {
       return { playerId: target.playerId, linked: false };
     }
 
-    case 'generateSessions': {
-      return { generatedCount: 3, prefilledRegistrations: 6 };
+    case 'listTemplates': {
+      const canManage = user.role !== 'PLAYER';
+      return { templates: mockDb.templates.filter(t => canManage || t.active), venues: [...mockDb.venues] };
+    }
+
+    case 'saveTemplate': {
+      if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
+      if (!data.venue || !data.startLocal || !data.endLocal || data.endLocal <= data.startLocal) throw apiError('INVALID_TEMPLATE_DATA');
+      if (!mockDb.venues.includes(data.venue)) mockDb.venues.push(data.venue);
+      const { templateId, applyToExisting, ...fields } = data;
+      const existing = mockDb.templates.find(t => t.templateId === templateId);
+      if (existing && existing.weekdayIso !== data.weekdayIso) throw apiError('INVALID_TEMPLATE_DATA');
+      let updatedSessions = 0;
+      if (existing) {
+        Object.assign(existing, fields);
+        if (applyToExisting) {
+          mockDb.sessions.filter(s => s.templateId === templateId && s.status === 'OPEN').forEach(s => {
+            Object.assign(s, { venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal });
+            updatedSessions++;
+          });
+        }
+        return { templateId, updatedSessions, generatedCount: 0 };
+      }
+      const created = { templateId: 'tpl-demo-' + mockDb.templates.length, ...fields };
+      mockDb.templates.push(created);
+      return { templateId: created.templateId, updatedSessions, generatedCount: 4 };
+    }
+
+    case 'createSession': {
+      if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
+      if (!data.dateLocal || !data.venue || !data.startLocal || !data.endLocal || data.endLocal <= data.startLocal) throw apiError('INVALID_SESSION_DATA');
+      const sessionId = 'ses-demo-' + mockDb.sessions.length;
+      mockDb.sessions.push({ sessionId, templateId: '', dateLocal: data.dateLocal, venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, status: 'OPEN', confirmedCount: 0, registrations: {}, attendance: {} });
+      mockDb.sessions.sort((a, b) => a.dateLocal.localeCompare(b.dateLocal));
+      return { sessionId };
+    }
+
+    case 'updateSession': {
+      if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
+      const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
+      if (!session) throw apiError('SESSION_NOT_FOUND');
+      if (session.status !== 'OPEN') throw apiError('SESSION_NOT_OPEN');
+      if (!data.venue || !data.startLocal || !data.endLocal || data.endLocal <= data.startLocal) throw apiError('INVALID_SESSION_DATA');
+      Object.assign(session, { venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal });
+      return { sessionId: session.sessionId };
     }
 
     case 'getSystemHealth': {
@@ -451,7 +525,7 @@ async function initUser() {
     const me = await callApi('whoami');
     state.currentUser = me;
     dom.userName.textContent = `${me.firstName} ${me.lastName}`;
-    dom.roleBadge.textContent = me.role;
+    dom.roleBadge.textContent = ROLE_LABELS[me.role] || me.role;
     dom.loginBox.style.display = 'none';
 
     // Show Orga/Admin tab if role permits
@@ -638,24 +712,44 @@ dom.refreshSessionsBtn.addEventListener('click', () => loadSessions());
 // Preferences Tab
 async function loadPreferences() {
   try {
-    const prefs = await callApi('getPreferences');
+    const [{ templates }, prefs] = await Promise.all([callApi('listTemplates'), callApi('getPreferences')]);
     state.preferences = prefs;
-    Object.keys(dom.prefInputs).forEach(tplId => {
-      if (dom.prefInputs[tplId]) {
-        dom.prefInputs[tplId].checked = prefs[tplId] === true;
-      }
-    });
+    renderPreferences(templates.filter(t => t.active), prefs);
   } catch (err) {
     showToast(`Fehler beim Laden der Präferenzen: ${err.message}`);
   }
+}
+
+function renderPreferences(templates, prefs) {
+  dom.prefList.replaceChildren();
+  templates
+    .sort((a, b) => a.weekdayIso - b.weekdayIso || a.startLocal.localeCompare(b.startLocal))
+    .forEach(t => {
+      const item = document.createElement('div');
+      item.className = 'pref-item';
+      item.innerHTML = `
+        <div>
+          <div class="pref-label">${esc(WEEKDAYS[t.weekdayIso])} (${esc(t.venue)})</div>
+          <div class="pref-sub">${esc(t.startLocal)} – ${esc(t.endLocal)} Uhr</div>
+        </div>
+        <label class="switch" aria-label="${esc(WEEKDAYS[t.weekdayIso])} ${esc(t.startLocal)} automatisch vormerken">
+          <input type="checkbox">
+          <span class="slider"></span>
+        </label>
+      `;
+      const input = item.querySelector('input');
+      input.dataset.templateId = t.templateId;
+      input.checked = prefs[t.templateId] === true;
+      dom.prefList.append(item);
+    });
 }
 
 dom.savePreferencesBtn.addEventListener('click', async () => {
   dom.savePreferencesBtn.disabled = true;
   try {
     const payload = {};
-    Object.keys(dom.prefInputs).forEach(tplId => {
-      payload[tplId] = dom.prefInputs[tplId].checked;
+    dom.prefList.querySelectorAll('input[type=checkbox]').forEach(input => {
+      payload[input.dataset.templateId] = input.checked;
     });
     await callApi('setPreferences', payload);
     showToast('Stammtage erfolgreich gespeichert! ✓');
@@ -722,7 +816,57 @@ async function loadOrgaTab() {
 
   const isAdmin = state.currentUser?.role === 'ADMIN';
   dom.linkCard.style.display = isAdmin ? 'block' : 'none';
+  dom.adminToolsCard.style.display = isAdmin ? 'block' : 'none';
   if (isAdmin) await loadPlayerLinks();
+
+  const canManage = isAdmin || state.currentUser?.role === 'ORGANIZER';
+  dom.newSessionCard.style.display = canManage ? 'block' : 'none';
+  dom.templateCard.style.display = canManage ? 'block' : 'none';
+  if (canManage) await loadTemplates();
+}
+
+async function loadTemplates() {
+  try {
+    const { templates, venues } = await callApi('listTemplates');
+    state.templates = templates.sort((a, b) => a.weekdayIso - b.weekdayIso || a.startLocal.localeCompare(b.startLocal));
+
+    const selected = dom.templateSelect.value;
+    dom.templateSelect.replaceChildren();
+    state.templates.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.templateId;
+      opt.textContent = `${WEEKDAYS[t.weekdayIso]} ${t.startLocal}–${t.endLocal}, ${t.venue}${t.active ? '' : ' (inaktiv)'}`;
+      dom.templateSelect.append(opt);
+    });
+    const fresh = document.createElement('option');
+    fresh.value = '';
+    fresh.textContent = '+ Neuer Standardtermin';
+    dom.templateSelect.append(fresh);
+    if ([...dom.templateSelect.options].some(o => o.value === selected)) dom.templateSelect.value = selected;
+    showTemplate();
+
+    dom.venueList.replaceChildren();
+    venues.forEach(code => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      dom.venueList.append(opt);
+    });
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+  }
+}
+
+function showTemplate() {
+  const t = state.templates.find(x => x.templateId === dom.templateSelect.value);
+  // The weekday is fixed once sessions exist for it
+  dom.templateWeekday.disabled = Boolean(t);
+  dom.templateWeekday.value = String(t ? t.weekdayIso : 1);
+  dom.templateStart.value = t ? t.startLocal : '';
+  dom.templateEnd.value = t ? t.endLocal : '';
+  dom.templateVenue.value = t ? t.venue : '';
+  dom.templateActive.checked = t ? t.active : true;
+  dom.templateApply.checked = false;
+  dom.templateApplyWrap.style.display = t ? 'flex' : 'none';
 }
 
 async function loadPlayerLinks() {
@@ -734,7 +878,7 @@ async function loadPlayerLinks() {
       const opt = document.createElement('option');
       opt.value = p.playerId;
       const devices = p.deviceCount === 1 ? '1 Gerät' : `${p.deviceCount} Geräte`;
-      const status = p.linked ? `${p.role}, ${devices}` : (p.invitePending ? 'Code offen' : 'kein Zugang');
+      const status = p.linked ? `${ROLE_LABELS[p.role] || p.role}, ${devices}` : (p.invitePending ? 'Code offen' : 'kein Zugang');
       opt.textContent = `${p.firstName} ${p.lastName} (${status})`;
       dom.linkPlayerSelect.append(opt);
     });
@@ -780,6 +924,12 @@ function renderRoster(sessionId, roster, session, otherPlayers) {
     opt.textContent = `${p.firstName} ${p.lastName}`;
     dom.walkInSelect.append(opt);
   });
+
+  const canEdit = session.status === 'OPEN' || session.status === 'PLANNED';
+  dom.sessionEditBox.style.display = canEdit ? 'block' : 'none';
+  dom.editStart.value = session.startLocal || '';
+  dom.editEnd.value = session.endLocal || '';
+  dom.editVenue.value = session.venue || '';
 
   const canCancel = state.currentUser?.role === 'ADMIN' && (session.status === 'OPEN' || session.status === 'PLANNED');
   dom.cancelSessionBox.style.display = canCancel ? 'block' : 'none';
@@ -914,13 +1064,75 @@ dom.unlinkBtn.addEventListener('click', async () => {
   }
 });
 
-dom.generateSessionsBtn.addEventListener('click', async () => {
+dom.templateSelect.addEventListener('change', showTemplate);
+
+dom.saveSessionBtn.addEventListener('click', async () => {
+  const sessionId = dom.orgaSessionSelect.value;
+  dom.saveSessionBtn.disabled = true;
   try {
-    const res = await callApi('generateSessions', { daysAhead: 28 });
-    showToast(`${res.generatedCount} Termine generiert (${res.prefilledRegistrations} Voranmeldungen).`);
+    await callApi('updateSession', {
+      sessionId,
+      venue: dom.editVenue.value.trim(),
+      startLocal: dom.editStart.value,
+      endLocal: dom.editEnd.value
+    });
+    showToast('Termin geändert. Anmeldungen bleiben bestehen.');
     await loadSessions();
+    await loadOrgaTab();
+    dom.orgaSessionSelect.value = sessionId;
+    await loadRoster(sessionId);
   } catch (err) {
-    showToast(`Fehler: ${err.message}`);
+    showToast(`Fehler: ${err.message}`, 6000);
+  } finally {
+    dom.saveSessionBtn.disabled = false;
+  }
+});
+
+dom.createSessionBtn.addEventListener('click', async () => {
+  dom.createSessionBtn.disabled = true;
+  try {
+    await callApi('createSession', {
+      dateLocal: dom.newDate.value,
+      venue: dom.newVenue.value.trim(),
+      startLocal: dom.newStart.value,
+      endLocal: dom.newEnd.value
+    });
+    dom.newDate.value = '';
+    dom.newStart.value = '';
+    dom.newEnd.value = '';
+    dom.newVenue.value = '';
+    showToast('Termin angelegt.');
+    await loadSessions();
+    await loadOrgaTab();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  } finally {
+    dom.createSessionBtn.disabled = false;
+  }
+});
+
+dom.saveTemplateBtn.addEventListener('click', async () => {
+  dom.saveTemplateBtn.disabled = true;
+  try {
+    const res = await callApi('saveTemplate', {
+      templateId: dom.templateSelect.value,
+      weekdayIso: Number(dom.templateWeekday.value),
+      venue: dom.templateVenue.value.trim(),
+      startLocal: dom.templateStart.value,
+      endLocal: dom.templateEnd.value,
+      active: dom.templateActive.checked,
+      applyToExisting: dom.templateApply.checked
+    });
+    dom.templateSelect.value = '';
+    showToast(`Gespeichert. Angepasste Termine: ${res.updatedSessions}, neu erzeugt: ${res.generatedCount}.`, 5000);
+    await loadSessions();
+    await loadOrgaTab();
+    dom.templateSelect.value = res.templateId;
+    showTemplate();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  } finally {
+    dom.saveTemplateBtn.disabled = false;
   }
 });
 

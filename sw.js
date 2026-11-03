@@ -1,7 +1,7 @@
 // Service Worker for Badminton Management System 2.0
 // Caches ONLY static assets. Never caches API responses, private user data or tokens.
 
-const CACHE_NAME = 'bms-static-v2.8';
+const CACHE_NAME = 'bms-static-v2.10';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -14,7 +14,8 @@ const STATIC_ASSETS = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(STATIC_ASSETS);
+      // Past the HTTP cache, otherwise old and new files can end up mixed after an update
+      return cache.addAll(STATIC_ASSETS.map(url => new Request(url, { cache: 'reload' })));
     })
   );
   self.skipWaiting();
@@ -34,23 +35,19 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Security: NEVER cache API calls, Google OAuth tokens, or POST requests
-  if (event.request.method !== 'GET' || url.pathname.includes('/api') || url.hostname.includes('googleapis')) {
+  // Security: NEVER cache API calls or POST requests. Only own static files are handled at all.
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.includes('/api')) {
     return;
   }
 
-  // Stale-while-revalidate for static files
+  // Network first, so that page and script always belong together. The cache only serves offline.
   event.respondWith(
-    caches.match(event.request).then(cachedResponse => {
-      const fetchPromise = fetch(event.request).then(networkResponse => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
-        }
-        return networkResponse;
-      }).catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(url.href, { cache: 'no-cache' }).then(networkResponse => {
+      if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+        const responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
+      }
+      return networkResponse;
+    }).catch(() => caches.match(event.request))
   );
 });
