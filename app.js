@@ -54,7 +54,9 @@ const state = {
   leaderboard: [],
   orgaRoster: [],
   templates: [],
-  trainers: []
+  trainers: [],
+  orgaView: 'menu',
+  orgaSessionId: null
 };
 
 // Mock In-Memory Backend (Deterministic Demo/Fallback)
@@ -142,7 +144,19 @@ const dom = {
   refreshLeaderboardBtn: document.getElementById('refreshLeaderboardBtn'),
   leaderboardBody: document.getElementById('leaderboardBody'),
   adminNavTab: document.getElementById('adminNavTab'),
-  orgaSessionSelect: document.getElementById('orgaSessionSelect'),
+  orgaNextBtn: document.getElementById('orgaNextBtn'),
+  orgaMenuAccess: document.getElementById('orgaMenuAccess'),
+  orgaMenuSystem: document.getElementById('orgaMenuSystem'),
+  orgaSessionTitle: document.getElementById('orgaSessionTitle'),
+  orgaSessionHint: document.getElementById('orgaSessionHint'),
+  orgaSessionList: document.getElementById('orgaSessionList'),
+  closeBox: document.getElementById('closeBox'),
+  correctPlayer: document.getElementById('correctPlayer'),
+  correctYear: document.getElementById('correctYear'),
+  correctInfo: document.getElementById('correctInfo'),
+  correctDelta: document.getElementById('correctDelta'),
+  correctReason: document.getElementById('correctReason'),
+  correctBtn: document.getElementById('correctBtn'),
   orgaRosterContainer: document.getElementById('orgaRosterContainer'),
   closeSessionBtn: document.getElementById('closeSessionBtn'),
   systemHealthBtn: document.getElementById('systemHealthBtn'),
@@ -215,6 +229,7 @@ const ERROR_MESSAGES = {
   INVALID_SESSION_DATA: 'Bitte prüfe Datum, Halle und Uhrzeiten. Das Ende muss nach dem Beginn liegen.',
   INVALID_TEMPLATE_DATA: 'Bitte prüfe Halle und Uhrzeiten. Der Wochentag eines Standardtermins lässt sich nicht ändern.',
   TEMPLATE_NOT_FOUND: 'Dieser Standardtermin wurde nicht gefunden.',
+  INVALID_CORRECTION_DATA: 'Bitte wähle einen Spieler und gib ganze Punkte ungleich 0 sowie eine Begründung an.',
   INVALID_CANCEL_DATA: 'Bitte gib einen Grund für die Absage an.',
   INVALID_INVITE_DATA: 'Bitte prüfe Spieler und Rolle.',
   IDENTITY_NOT_LINKED: 'Dieser Spieler hat keinen aktiven Zugang.',
@@ -432,6 +447,14 @@ async function runMockApi(action, data) {
       return { playerId: target.playerId, linked: false };
     }
 
+    case 'correctPoints': {
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      const delta = Number(data.delta);
+      if (!data.playerId || !Number.isSafeInteger(delta) || delta === 0 || !String(data.reason || '').trim()) throw apiError('INVALID_CORRECTION_DATA');
+      mockDb.points[data.playerId] = (mockDb.points[data.playerId] || 0) + delta;
+      return { success: true, newDelta: delta };
+    }
+
     case 'listTemplates': {
       const canManage = user.role !== 'PLAYER';
       const trainers = Object.values(mockDb.users).filter(u => u.role !== 'PLAYER').map(u => ({ playerId: u.playerId, name: u.firstName + ' ' + u.lastName }));
@@ -503,7 +526,10 @@ function switchTab(tabName) {
   if (tabName === 'sessions') loadSessions();
   if (tabName === 'preferences') loadPreferences();
   if (tabName === 'leaderboard') loadLeaderboard();
-  if (tabName === 'admin') loadOrgaTab();
+  if (tabName === 'admin') {
+    showOrgaView('menu', false);
+    loadOrgaTab();
+  }
 }
 
 dom.navTabs.forEach(tab => {
@@ -812,31 +838,92 @@ function renderLeaderboard(standings) {
 
 dom.refreshLeaderboardBtn.addEventListener('click', () => loadLeaderboard());
 
-// Organizer & Admin Tab
-async function loadOrgaTab() {
-  // First the lists for the selection fields, the session form below needs them
-  await loadTemplates();
+// Organizer & Admin Tab, split into sub pages
+const STATUS_LABELS = { OPEN: 'Offen', CLOSING: 'Wird abgeschlossen', CLOSED: 'Abgeschlossen', CANCELED: 'Abgesagt', PLANNED: 'Geplant' };
 
-  dom.orgaSessionSelect.replaceChildren();
-  state.sessions.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.sessionId;
-    opt.textContent = `${formatDate(s.dateLocal)} (${s.venue}) - Status: ${s.status}`;
-    dom.orgaSessionSelect.append(opt);
+function showOrgaView(view, addHistory = true) {
+  state.orgaView = view;
+  document.querySelectorAll('.orga-view').forEach(el => {
+    el.hidden = el.id !== `orga-${view}`;
   });
+  // A history entry, so that the back button of the phone leads back to the menu
+  if (addHistory && view !== 'menu') history.pushState({ orgaView: view }, '');
+  window.scrollTo(0, 0);
+}
 
-  if (state.sessions.length > 0) {
-    await loadRoster(state.sessions[0].sessionId);
+window.addEventListener('popstate', event => {
+  showOrgaView(event.state?.orgaView || 'menu', false);
+});
+
+document.querySelectorAll('.orga-back').forEach(btn => {
+  btn.addEventListener('click', () => history.back());
+});
+
+document.querySelectorAll('[data-orga-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    showOrgaView(btn.dataset.orgaView);
+    if (btn.dataset.orgaView === 'system') refreshCorrectInfo();
+  });
+});
+
+function sessionLabel(s) {
+  return `${formatDate(s.dateLocal)}, ${s.startLocal}–${s.endLocal}, ${s.venue}`;
+}
+
+async function loadOrgaTab() {
+  const isAdmin = state.currentUser?.role === 'ADMIN';
+  dom.orgaMenuAccess.hidden = !isAdmin;
+  dom.orgaMenuSystem.hidden = !isAdmin;
+
+  await loadSessions();
+  renderOrgaMenu();
+
+  // The lists for the selection fields, the session page needs them
+  await loadTemplates();
+  if (isAdmin) await loadPlayerLinks();
+  if (state.orgaView === 'session' && state.orgaSessionId) await loadRoster(state.orgaSessionId);
+}
+
+function renderOrgaMenu() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+  const next = state.sessions.find(s => (s.status === 'OPEN' || s.status === 'CLOSING') && s.dateLocal >= today);
+  dom.orgaNextBtn.hidden = !next;
+  if (next) {
+    dom.orgaNextBtn.replaceChildren(next.dateLocal === today ? '🏸 Heute' : '🏸 Nächster Termin');
+    const detail = document.createElement('span');
+    detail.textContent = sessionLabel(next);
+    dom.orgaNextBtn.append(detail);
+    dom.orgaNextBtn.onclick = () => openOrgaSession(next.sessionId);
   }
 
-  const isAdmin = state.currentUser?.role === 'ADMIN';
-  dom.linkCard.style.display = isAdmin ? 'block' : 'none';
-  dom.adminToolsCard.style.display = isAdmin ? 'block' : 'none';
-  if (isAdmin) await loadPlayerLinks();
+  dom.orgaSessionList.replaceChildren();
+  if (state.sessions.length === 0) {
+    dom.orgaSessionList.textContent = 'Keine Termine vorhanden.';
+  }
+  state.sessions.forEach(s => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'orga-menu-item';
+    btn.append(sessionLabel(s));
+    const status = document.createElement('span');
+    status.textContent = `${STATUS_LABELS[s.status] || s.status} · ${s.confirmedCount} ${s.confirmedCount === 1 ? 'Zusage' : 'Zusagen'}`;
+    btn.append(status);
+    btn.addEventListener('click', () => openOrgaSession(s.sessionId));
+    dom.orgaSessionList.append(btn);
+  });
+}
 
-  const canManage = isAdmin || state.currentUser?.role === 'ORGANIZER';
-  dom.newSessionCard.style.display = canManage ? 'block' : 'none';
-  dom.templateCard.style.display = canManage ? 'block' : 'none';
+async function openOrgaSession(sessionId) {
+  state.orgaSessionId = sessionId;
+  dom.orgaSessionTitle.textContent = '';
+  dom.orgaSessionHint.textContent = '';
+  dom.orgaRosterContainer.textContent = 'Lade …';
+  [dom.walkInBox, dom.sessionEditBox, dom.closeBox, dom.cancelSessionBox].forEach(box => {
+    box.open = false;
+    box.hidden = true;
+  });
+  showOrgaView('session');
+  await loadRoster(sessionId);
 }
 
 function fillSelect(select, entries) {
@@ -908,14 +995,11 @@ async function loadPlayerLinks() {
       dom.linkPlayerSelect.append(opt);
     });
     if (selected) dom.linkPlayerSelect.value = selected;
+    fillSelect(dom.correctPlayer, players.map(p => [p.playerId, `${p.firstName} ${p.lastName}`]));
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
   }
 }
-
-dom.orgaSessionSelect.addEventListener('change', e => {
-  loadRoster(e.target.value);
-});
 
 async function loadRoster(sessionId) {
   try {
@@ -928,80 +1012,121 @@ async function loadRoster(sessionId) {
 
 function renderRoster(sessionId, roster, session, otherPlayers) {
   dom.orgaRosterContainer.replaceChildren();
+  dom.orgaSessionTitle.textContent = sessionLabel(session);
 
-  // Attendance is frozen as soon as closing has started, a started close can only be continued
-  const isClosed = session.status !== 'OPEN';
-  const closeLabels = {
-    OPEN: '🔒 Jetzt schon abschließen',
-    CLOSING: '🔁 Abschluss fortsetzen',
-    CLOSED: '✓ Spieltag bereits abgeschlossen',
-    CANCELED: 'Termin abgesagt',
-    PLANNED: 'Termin noch nicht geöffnet'
+  const isOpen = session.status === 'OPEN';
+  const hints = {
+    OPEN: 'Gegen 23 Uhr wird automatisch abgeschlossen. Bis dahin kannst du hier korrigieren.',
+    CLOSING: 'Der Abschluss wurde begonnen, die Liste ist gesperrt.',
+    CLOSED: 'Abgeschlossen. Korrekturen macht ein Admin über die Punktkorrektur.',
+    CANCELED: 'Dieser Termin ist abgesagt.',
+    PLANNED: 'Dieser Termin ist noch nicht geöffnet.'
   };
-  dom.closeSessionBtn.disabled = session.status !== 'OPEN' && session.status !== 'CLOSING';
-  dom.closeSessionBtn.textContent = closeLabels[session.status] || session.status;
+  dom.orgaSessionHint.textContent = hints[session.status] || '';
 
-  dom.walkInBox.style.display = session.status === 'OPEN' && otherPlayers.length > 0 ? 'block' : 'none';
-  dom.walkInSelect.replaceChildren();
-  otherPlayers.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.playerId;
-    opt.textContent = `${p.firstName} ${p.lastName}`;
-    dom.walkInSelect.append(opt);
-  });
+  // A confirmation counts as attendance unless a trainer set ABSENT
+  const isPresent = p => p.attendanceState === 'PRESENT' || (p.attendanceState === 'UNKNOWN' && p.registrationState === 'CONFIRMED');
+  const present = roster.filter(isPresent);
+  const absent = roster.filter(p => !isPresent(p) && p.attendanceState === 'ABSENT');
+  const addable = [...otherPlayers, ...roster.filter(p => !isPresent(p) && p.attendanceState !== 'ABSENT')]
+    .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
 
-  const canEdit = session.status === 'OPEN' || session.status === 'PLANNED';
-  dom.sessionEditBox.style.display = canEdit ? 'block' : 'none';
+  const section = (title, players, actionLabel, nextState, btnClass) => {
+    const heading = document.createElement('div');
+    heading.className = 'orga-roster-title';
+    heading.textContent = `${title} (${players.length})`;
+    dom.orgaRosterContainer.append(heading);
+
+    players.forEach(player => {
+      const row = document.createElement('div');
+      row.className = 'orga-roster-row';
+      const name = document.createElement('div');
+      name.textContent = [player.firstName, player.lastName].join(' ').trim();
+      name.style.fontWeight = '600';
+      row.append(name);
+      if (isOpen) {
+        const btn = document.createElement('button');
+        btn.className = `btn ${btnClass}`;
+        btn.textContent = actionLabel;
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await callApi('setAttendance', { sessionId, playerId: player.playerId, state: nextState });
+            await loadRoster(sessionId);
+          } catch (err) {
+            showToast(`Fehler: ${err.message}`);
+            btn.disabled = false;
+          }
+        });
+        row.append(btn);
+      }
+      dom.orgaRosterContainer.append(row);
+    });
+  };
+  section('Anwesend', present, 'Austragen', 'ABSENT', 'btn-decline');
+  if (absent.length > 0 || isOpen) section('Nicht da', absent, 'Eintragen', 'PRESENT', 'btn-confirm');
+
+  dom.walkInBox.hidden = !isOpen || addable.length === 0;
+  fillSelect(dom.walkInSelect, addable.map(p => [p.playerId, `${p.firstName} ${p.lastName}`]));
+
+  const canEdit = isOpen || session.status === 'PLANNED';
+  dom.sessionEditBox.hidden = !canEdit;
+  dom.cancelSessionBox.hidden = !canEdit;
+  dom.closeBox.hidden = !isOpen && session.status !== 'CLOSING';
+  dom.closeSessionBtn.disabled = false;
+  dom.closeSessionBtn.textContent = session.status === 'CLOSING' ? '🔁 Abschluss fortsetzen' : '🔒 Jetzt schon abschließen';
   dom.editStart.value = session.startLocal || '';
   dom.editEnd.value = session.endLocal || '';
   dom.editVenue.value = session.venue || '';
-
-  dom.cancelSessionBox.style.display = canEdit ? 'block' : 'none';
-
-  if (roster.length === 0) {
-    dom.orgaRosterContainer.innerHTML = '<p style="color: var(--gray-600); font-size: 0.85rem;">Keine Anmeldungen für diesen Termin.</p>';
-    return;
-  }
-
-  roster.forEach(player => {
-    const row = document.createElement('div');
-    row.style = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--gray-100);';
-
-    // A confirmation counts as attendance unless a trainer set ABSENT
-    const isPresent = player.attendanceState === 'PRESENT' ||
-      (player.attendanceState === 'UNKNOWN' && player.registrationState === 'CONFIRMED');
-
-    row.innerHTML = `
-      <div>
-        <div style="font-weight: 600; font-size: 0.9rem;">${esc(player.firstName)} ${esc(player.lastName)}</div>
-        <div style="font-size: 0.75rem; color: var(--gray-600);">Status: ${esc(player.registrationState)}</div>
-      </div>
-      <div>
-        <button class="btn ${isPresent ? 'btn-confirm' : 'btn-decline'}" style="padding: 6px 12px; font-size: 0.8rem; min-height: 36px;" ${isClosed ? 'disabled' : ''}>
-          ${isPresent ? '✓ Anwesend' : 'Abwesend'}
-        </button>
-      </div>
-    `;
-
-    const btn = row.querySelector('button');
-    btn.addEventListener('click', async () => {
-      const nextState = isPresent ? 'ABSENT' : 'PRESENT';
-      btn.disabled = true;
-      try {
-        await callApi('setAttendance', { sessionId, playerId: player.playerId, state: nextState });
-        await loadRoster(sessionId);
-      } catch (err) {
-        showToast(`Fehler: ${err.message}`);
-        btn.disabled = false;
-      }
-    });
-
-    dom.orgaRosterContainer.append(row);
-  });
 }
 
+// Point corrections (admin only). Every correction is its own entry with a reason.
+const thisYear = new Date().getFullYear();
+fillSelect(dom.correctYear, [thisYear, thisYear - 1].map(year => [String(year), String(year)]));
+dom.correctYear.value = String(thisYear);
+
+async function refreshCorrectInfo() {
+  dom.correctInfo.textContent = '';
+  if (!dom.correctPlayer.value) return;
+  try {
+    const { standings } = await callApi('getLeaderboard', { seasonYear: dom.correctYear.value });
+    const entry = (standings || []).find(s => s.playerId === dom.correctPlayer.value);
+    dom.correctInfo.textContent = `Aktuell: ${entry ? entry.points : 0} Punkte in ${dom.correctYear.value}`;
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+  }
+}
+
+dom.correctPlayer.addEventListener('change', refreshCorrectInfo);
+dom.correctYear.addEventListener('change', refreshCorrectInfo);
+
+dom.correctBtn.addEventListener('click', async () => {
+  const name = dom.correctPlayer.options[dom.correctPlayer.selectedIndex]?.textContent || '';
+  const delta = dom.correctDelta.value;
+  if (!confirm(`${delta} Punkte für ${name} im Jahr ${dom.correctYear.value} buchen?`)) {
+    return;
+  }
+  dom.correctBtn.disabled = true;
+  try {
+    await callApi('correctPoints', {
+      playerId: dom.correctPlayer.value,
+      delta: Number(delta),
+      reason: dom.correctReason.value.trim(),
+      seasonYear: dom.correctYear.value
+    });
+    dom.correctDelta.value = '';
+    dom.correctReason.value = '';
+    showToast('Korrektur gebucht.');
+    await refreshCorrectInfo();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  } finally {
+    dom.correctBtn.disabled = false;
+  }
+});
+
 dom.closeSessionBtn.addEventListener('click', async () => {
-  const sessionId = dom.orgaSessionSelect.value;
+  const sessionId = state.orgaSessionId;
   if (!confirm('Termin jetzt schon abschließen? Sonst geschieht das automatisch gegen 23 Uhr. Alle als anwesend Markierten bekommen +1 Punkt, danach sind keine Änderungen mehr möglich.')) {
     return;
   }
@@ -1010,7 +1135,6 @@ dom.closeSessionBtn.addEventListener('click', async () => {
   try {
     const res = await callApi('closeSession', { sessionId });
     showToast(`Spieltag abgeschlossen! ${res.awardedCount} Punkte gutgeschrieben.`);
-    await loadSessions();
     await loadOrgaTab();
   } catch (err) {
     showToast(`Fehler beim Abschluss: ${err.message}`, 8000);
@@ -1019,7 +1143,7 @@ dom.closeSessionBtn.addEventListener('click', async () => {
 });
 
 dom.walkInBtn.addEventListener('click', async () => {
-  const sessionId = dom.orgaSessionSelect.value;
+  const sessionId = state.orgaSessionId;
   dom.walkInBtn.disabled = true;
   try {
     await callApi('setAttendance', { sessionId, playerId: dom.walkInSelect.value, state: 'PRESENT' });
@@ -1042,10 +1166,9 @@ dom.cancelSessionBtn.addEventListener('click', async () => {
   }
   dom.cancelSessionBtn.disabled = true;
   try {
-    await callApi('cancelSession', { sessionId: dom.orgaSessionSelect.value, reason });
+    await callApi('cancelSession', { sessionId: state.orgaSessionId, reason });
     dom.cancelReason.value = '';
     showToast('Termin abgesagt.');
-    await loadSessions();
     await loadOrgaTab();
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
@@ -1093,7 +1216,7 @@ dom.unlinkBtn.addEventListener('click', async () => {
 dom.templateSelect.addEventListener('change', showTemplate);
 
 dom.saveSessionBtn.addEventListener('click', async () => {
-  const sessionId = dom.orgaSessionSelect.value;
+  const sessionId = state.orgaSessionId;
   dom.saveSessionBtn.disabled = true;
   try {
     await callApi('updateSession', {
@@ -1103,10 +1226,7 @@ dom.saveSessionBtn.addEventListener('click', async () => {
       endLocal: dom.editEnd.value
     });
     showToast('Termin geändert. Anmeldungen bleiben bestehen.');
-    await loadSessions();
     await loadOrgaTab();
-    dom.orgaSessionSelect.value = sessionId;
-    await loadRoster(sessionId);
   } catch (err) {
     showToast(`Fehler: ${err.message}`, 6000);
   } finally {
@@ -1127,7 +1247,6 @@ dom.createSessionBtn.addEventListener('click', async () => {
     dom.newStart.value = '';
     dom.newEnd.value = '';
     showToast('Termin angelegt.');
-    await loadSessions();
     await loadOrgaTab();
   } catch (err) {
     showToast(`Fehler: ${err.message}`, 6000);
@@ -1152,7 +1271,6 @@ dom.saveTemplateBtn.addEventListener('click', async () => {
     });
     dom.templateSelect.value = '';
     showToast(`Gespeichert. Angepasste Termine: ${res.updatedSessions}, neu erzeugt: ${res.generatedCount}.`, 5000);
-    await loadSessions();
     await loadOrgaTab();
     dom.templateSelect.value = res.templateId;
     showTemplate();
