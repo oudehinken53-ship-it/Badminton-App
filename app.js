@@ -383,6 +383,7 @@ async function runMockApi(action, data) {
     }
 
     case 'cancelSession': {
+      if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
       const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
       if (!session) throw apiError('SESSION_NOT_FOUND');
       if (!String(data.reason || '').trim()) throw apiError('INVALID_CANCEL_DATA');
@@ -931,8 +932,7 @@ function renderRoster(sessionId, roster, session, otherPlayers) {
   dom.editEnd.value = session.endLocal || '';
   dom.editVenue.value = session.venue || '';
 
-  const canCancel = state.currentUser?.role === 'ADMIN' && (session.status === 'OPEN' || session.status === 'PLANNED');
-  dom.cancelSessionBox.style.display = canCancel ? 'block' : 'none';
+  dom.cancelSessionBox.style.display = canEdit ? 'block' : 'none';
 
   if (roster.length === 0) {
     dom.orgaRosterContainer.innerHTML = '<p style="color: var(--gray-600); font-size: 0.85rem;">Keine Anmeldungen für diesen Termin.</p>';
