@@ -710,13 +710,16 @@ input:checked + .slider:before {
 /* Toast Messages */
 .toast {
   position: fixed;
-  top: 85px;
+  bottom: 96px;
   left: 50%;
   transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  text-align: center;
   background: var(--gray-900);
   color: var(--union-white);
   padding: 10px 22px;
-  border-radius: 9999px;
+  border-radius: 16px;
   font-size: 0.85rem;
   font-weight: 700;
   box-shadow: var(--shadow-lg);

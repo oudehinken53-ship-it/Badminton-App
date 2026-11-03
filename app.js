@@ -185,7 +185,7 @@ const ERROR_MESSAGES = {
   INVALID_CANCEL_DATA: 'Bitte gib einen Grund für die Absage an.',
   INVALID_INVITE_DATA: 'Bitte prüfe Spieler und Rolle.',
   IDENTITY_NOT_LINKED: 'Dieser Spieler hat keinen aktiven Zugang.',
-  SELF_LOCKOUT: 'Deinen eigenen Zugang kannst du nicht ändern.',
+  SELF_LOCKOUT: 'Deine eigene Rolle und deinen eigenen Zugang kannst du nicht ändern.',
   RECOVERY_REQUIRED: 'Der Abschluss ist unvollständig und wurde gestoppt. Punkte prüfen, bitte den Admin informieren.',
   UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar. Nichts wurde gespeichert.',
   NETWORK: 'Keine Verbindung zum Server. Nichts wurde gespeichert.'
@@ -363,7 +363,7 @@ async function runMockApi(action, data) {
     case 'listPlayerLinks': {
       const players = Object.values(mockDb.users).map(u => {
         const role = u.linked === false ? '' : u.role;
-        return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, linked: u.linked !== false, role, invitePending: u.invitePending === true };
+        return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, linked: u.linked !== false, role, deviceCount: u.linked === false ? 0 : 1, invitePending: u.invitePending === true };
       });
       return { players };
     }
@@ -371,7 +371,7 @@ async function runMockApi(action, data) {
     case 'createInvite': {
       const target = Object.values(mockDb.users).find(u => u.playerId === data.playerId);
       if (!target) throw apiError('PLAYER_NOT_FOUND');
-      if (target.playerId === user.playerId) throw apiError('SELF_LOCKOUT');
+      if (target.playerId === user.playerId && data.role !== user.role) throw apiError('SELF_LOCKOUT');
       target.invitePending = true;
       return {
         playerId: target.playerId,
@@ -733,7 +733,8 @@ async function loadPlayerLinks() {
     players.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.playerId;
-      const status = p.linked ? p.role : (p.invitePending ? 'Code offen' : 'kein Zugang');
+      const devices = p.deviceCount === 1 ? '1 Gerät' : `${p.deviceCount} Geräte`;
+      const status = p.linked ? `${p.role}, ${devices}` : (p.invitePending ? 'Code offen' : 'kein Zugang');
       opt.textContent = `${p.firstName} ${p.lastName} (${status})`;
       dom.linkPlayerSelect.append(opt);
     });
@@ -886,7 +887,7 @@ dom.linkBtn.addEventListener('click', async () => {
       role: dom.linkRole.value
     });
     dom.inviteCodeOut.textContent = invite.code;
-    dom.inviteExpiry.textContent = `Gültig bis ${new Date(invite.expiresAt).toLocaleDateString('de-DE')}, nur einmal verwendbar. Ein früherer offener Code verfällt damit.`;
+    dom.inviteExpiry.textContent = `Gültig bis ${new Date(invite.expiresAt).toLocaleDateString('de-DE')}, nur einmal verwendbar. Fügt ein Gerät hinzu, ein früherer offener Code verfällt damit.`;
     dom.inviteResult.style.display = 'block';
     await loadPlayerLinks();
   } catch (err) {
@@ -897,7 +898,7 @@ dom.linkBtn.addEventListener('click', async () => {
 });
 
 dom.unlinkBtn.addEventListener('click', async () => {
-  if (!confirm('Zugang wirklich sperren? Der Spieler braucht danach einen neuen Einladungscode.')) {
+  if (!confirm('Zugang wirklich sperren? Alle Geräte des Spielers werden abgemeldet, er braucht danach neue Einladungscodes.')) {
     return;
   }
   dom.unlinkBtn.disabled = true;
