@@ -812,3 +812,53 @@ input:checked + .slider:before {
   padding: 6px 12px;
   font-size: 0.8rem;
 }
+
+/* Time and hall stand out on session cards. The hall is coded by color AND text, the colors stay
+   clear of the signal colors for confirm, decline, warning and info. */
+.session-when {
+  margin-top: 4px;
+  font-size: 1.3rem;
+  font-weight: 900;
+  line-height: 1.2;
+  color: var(--gray-900);
+}
+
+.hall-chip {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--union-white);
+}
+
+.hall-park { background: #5b21b6; }
+.hall-mzh { background: #0f766e; }
+.hall-other { background: var(--gray-600); }
+
+.session-card[data-clickable] { cursor: pointer; }
+
+.session-more {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--union-red);
+  text-align: right;
+}
+
+.detail-name {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+  font-weight: 600;
+}
+
+.detail-name small {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--gray-600);
+}
+
+#detailActions { margin-top: 12px; }

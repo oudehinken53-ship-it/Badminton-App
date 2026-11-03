@@ -56,7 +56,7 @@ const state = {
   templates: [],
   trainers: [],
   orgaView: 'menu',
-  orgaSessionId: null
+  detailSessionId: null
 };
 
 // Mock In-Memory Backend (Deterministic Demo/Fallback)
@@ -147,7 +147,21 @@ const dom = {
   orgaNextBtn: document.getElementById('orgaNextBtn'),
   orgaMenuAccess: document.getElementById('orgaMenuAccess'),
   orgaMenuSystem: document.getElementById('orgaMenuSystem'),
-  orgaSessionTitle: document.getElementById('orgaSessionTitle'),
+  trainingList: document.getElementById('trainingList'),
+  trainingDetail: document.getElementById('trainingDetail'),
+  detailHead: document.getElementById('detailHead'),
+  detailActions: document.getElementById('detailActions'),
+  detailConfirmBtn: document.getElementById('detailConfirmBtn'),
+  detailDeclineBtn: document.getElementById('detailDeclineBtn'),
+  detailParticipantsBox: document.getElementById('detailParticipantsBox'),
+  detailParticipantsTitle: document.getElementById('detailParticipantsTitle'),
+  detailParticipants: document.getElementById('detailParticipants'),
+  detailGuestsTitle: document.getElementById('detailGuestsTitle'),
+  detailGuests: document.getElementById('detailGuests'),
+  guestBox: document.getElementById('guestBox'),
+  guestName: document.getElementById('guestName'),
+  guestAddBtn: document.getElementById('guestAddBtn'),
+  orgaSessionTools: document.getElementById('orgaSessionTools'),
   orgaSessionHint: document.getElementById('orgaSessionHint'),
   orgaSessionList: document.getElementById('orgaSessionList'),
   closeBox: document.getElementById('closeBox'),
@@ -229,6 +243,9 @@ const ERROR_MESSAGES = {
   INVALID_SESSION_DATA: 'Bitte prüfe Datum, Halle und Uhrzeiten. Das Ende muss nach dem Beginn liegen.',
   INVALID_TEMPLATE_DATA: 'Bitte prüfe Halle und Uhrzeiten. Der Wochentag eines Standardtermins lässt sich nicht ändern.',
   TEMPLATE_NOT_FOUND: 'Dieser Standardtermin wurde nicht gefunden.',
+  INVALID_GUEST_DATA: 'Bitte gib einen gültigen Namen für den Gast an.',
+  GUEST_ALREADY_ADDED: 'Dieser Gast ist für den Termin schon angemeldet.',
+  GUEST_NOT_FOUND: 'Dieser Gast wurde nicht gefunden.',
   INVALID_CORRECTION_DATA: 'Bitte wähle einen Spieler und gib ganze Punkte ungleich 0 sowie eine Begründung an.',
   INVALID_CANCEL_DATA: 'Bitte gib einen Grund für die Absage an.',
   INVALID_INVITE_DATA: 'Bitte prüfe Spieler und Rolle.',
@@ -308,6 +325,7 @@ async function runMockApi(action, data) {
           endLocal: s.endLocal,
           status: s.status,
           confirmedCount: s.confirmedCount,
+          guestCount: (s.guests || []).length,
           audience: s.audience || 'ADULT',
           trainerName: s.trainerName || '',
           myRegistration: myReg
@@ -447,6 +465,42 @@ async function runMockApi(action, data) {
       return { playerId: target.playerId, linked: false };
     }
 
+    case 'getSessionDetail': {
+      const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
+      if (!session) throw apiError('SESSION_NOT_FOUND');
+      const names = Object.values(mockDb.users).filter(u => session.registrations[u.playerId] === 'CONFIRMED').map(u => u.firstName + ' ' + u.lastName);
+      const canManage = user.role !== 'PLAYER';
+      return {
+        session,
+        myRegistration: session.registrations[user.playerId] || 'UNDECIDED',
+        participants: names,
+        guests: (session.guests || []).map(g => ({ ...g, canRemove: canManage || g.invitedBy === user.playerId }))
+      };
+    }
+
+    case 'addGuest': {
+      const session = mockDb.sessions.find(s => s.sessionId === data.sessionId);
+      if (!session) throw apiError('SESSION_NOT_FOUND');
+      const label = String(data.label || '').trim();
+      if (!label) throw apiError('INVALID_GUEST_DATA');
+      session.guests = session.guests || [];
+      if (session.guests.some(g => g.label.toLowerCase() === label.toLowerCase())) throw apiError('GUEST_ALREADY_ADDED');
+      const guest = { guestId: 'gst-demo-' + Date.now(), label, invitedBy: user.playerId, invitedByName: user.firstName + ' ' + user.lastName };
+      session.guests.push(guest);
+      return { guestId: guest.guestId };
+    }
+
+    case 'removeGuest': {
+      for (const session of mockDb.sessions) {
+        const index = (session.guests || []).findIndex(g => g.guestId === data.guestId);
+        if (index >= 0) {
+          session.guests.splice(index, 1);
+          return { guestId: data.guestId };
+        }
+      }
+      throw apiError('GUEST_NOT_FOUND');
+    }
+
     case 'correctPoints': {
       if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
       const delta = Number(data.delta);
@@ -526,14 +580,194 @@ function switchTab(tabName) {
   if (tabName === 'sessions') loadSessions();
   if (tabName === 'preferences') loadPreferences();
   if (tabName === 'leaderboard') loadLeaderboard();
-  if (tabName === 'admin') {
-    showOrgaView('menu', false);
-    loadOrgaTab();
+  if (tabName === 'admin') loadOrgaTab();
+}
+
+// Sub pages get a history entry, so that the back button of the phone stays inside the app
+function navSnapshot() {
+  return { tab: state.activeTab, orgaView: state.orgaView, sessionId: state.detailSessionId };
+}
+
+function navigate(change) {
+  history.replaceState(navSnapshot(), '');
+  change();
+  history.pushState(navSnapshot(), '');
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener('popstate', event => {
+  const target = event.state || { tab: 'sessions', orgaView: 'menu', sessionId: null };
+  const leavesSessionPage = state.detailSessionId && !target.sessionId;
+  const sameTab = target.tab === state.activeTab;
+  if (!sameTab) switchTab(target.tab);
+  showOrgaView(target.orgaView || 'menu');
+  showSessionPage(target.sessionId || null);
+  // Changes made on the session page have to show up in the list
+  if (leavesSessionPage && sameTab && state.currentUser) loadSessions();
+});
+
+dom.navTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    showOrgaView('menu');
+    showSessionPage(null);
+    switchTab(tab.dataset.tab);
+    history.replaceState(navSnapshot(), '');
+    window.scrollTo(0, 0);
+  });
+});
+
+function openLeaderboard() {
+  navigate(() => switchTab('leaderboard'));
+}
+
+function openSession(sessionId) {
+  navigate(() => {
+    if (state.activeTab !== 'sessions') switchTab('sessions');
+    showSessionPage(sessionId);
+  });
+}
+
+function showSessionPage(sessionId) {
+  state.detailSessionId = sessionId;
+  dom.trainingList.hidden = Boolean(sessionId);
+  dom.trainingDetail.hidden = !sessionId;
+  if (!sessionId) return;
+  dom.detailHead.textContent = 'Lade …';
+  dom.detailActions.hidden = true;
+  dom.detailParticipantsBox.hidden = true;
+  dom.orgaSessionTools.hidden = true;
+  dom.guestBox.hidden = true;
+  dom.detailGuests.replaceChildren();
+  dom.detailGuestsTitle.textContent = '';
+  [dom.walkInBox, dom.sessionEditBox, dom.closeBox, dom.cancelSessionBox, dom.guestBox].forEach(box => { box.open = false; });
+  loadSessionPage(sessionId);
+}
+
+function sessionHeadHtml(session) {
+  const hallClasses = { PARK: 'hall-park', MZH: 'hall-mzh' };
+  const extras = [
+    session.audience === 'YOUTH' ? '🧒 Jugend' : '',
+    session.trainerName ? `👤 Trainer: ${esc(session.trainerName)}` : ''
+  ].filter(Boolean).join(' &bull; ');
+  return `
+    <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
+    <div class="session-when">${esc(session.startLocal)}–${esc(session.endLocal)} Uhr</div>
+    <span class="hall-chip ${hallClasses[session.venue] || 'hall-other'}">📍 ${esc(session.venue)}</span>
+    ${extras ? `<div class="session-venue">${extras}</div>` : ''}
+  `;
+}
+
+async function loadSessionPage(sessionId) {
+  try {
+    const detail = await callApi('getSessionDetail', { sessionId });
+    if (state.detailSessionId !== sessionId) return;
+    const { session, myRegistration, participants, guests } = detail;
+    const isOpen = session.status === 'OPEN';
+    const canManage = state.currentUser?.role === 'ORGANIZER' || state.currentUser?.role === 'ADMIN';
+
+    dom.detailHead.innerHTML = sessionHeadHtml(session);
+
+    dom.detailActions.hidden = !isOpen;
+    dom.detailConfirmBtn.disabled = myRegistration === 'CONFIRMED';
+    dom.detailDeclineBtn.disabled = myRegistration === 'DECLINED';
+
+    // Trainers see the same people with actions in the attendance list
+    dom.detailParticipantsBox.hidden = canManage;
+    dom.detailParticipantsTitle.textContent = `Angemeldet (${participants.length})`;
+    dom.detailParticipants.replaceChildren();
+    participants.forEach(name => {
+      const row = document.createElement('div');
+      row.className = 'detail-name';
+      row.textContent = name;
+      dom.detailParticipants.append(row);
+    });
+
+    renderGuests(guests, isOpen);
+
+    dom.orgaSessionTools.hidden = !canManage;
+    if (canManage) {
+      if (dom.editVenue.options.length === 0) await loadTemplates();
+      await loadRoster(sessionId);
+    }
+  } catch (err) {
+    dom.detailHead.textContent = `Fehler: ${err.message}`;
   }
 }
 
-dom.navTabs.forEach(tab => {
-  tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+function renderGuests(guests, isOpen) {
+  dom.detailGuestsTitle.textContent = `Gäste (${guests.length})`;
+  dom.detailGuests.replaceChildren();
+  guests.forEach(guest => {
+    const row = document.createElement('div');
+    row.className = 'orga-roster-row';
+    const name = document.createElement('div');
+    name.className = 'detail-name';
+    name.style.borderBottom = 'none';
+    name.textContent = guest.label;
+    if (guest.invitedByName) {
+      const by = document.createElement('small');
+      by.textContent = `Eingeladen von ${guest.invitedByName}`;
+      name.append(by);
+    }
+    row.append(name);
+    if (isOpen && guest.canRemove) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-decline';
+      btn.textContent = 'Entfernen';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await callApi('removeGuest', { guestId: guest.guestId });
+          await loadSessionPage(state.detailSessionId);
+        } catch (err) {
+          showToast(`Fehler: ${err.message}`);
+          btn.disabled = false;
+        }
+      });
+      row.append(btn);
+    }
+    dom.detailGuests.append(row);
+  });
+  dom.guestBox.hidden = !isOpen;
+}
+
+async function setMyRegistration(stateToSet, btn) {
+  btn.disabled = true;
+  try {
+    const res = await callApi('setRegistration', { sessionId: state.detailSessionId, state: stateToSet });
+    showToast(`Erfolgreich gespeichert: ${res.state === 'CONFIRMED' ? 'Zusage ✓' : 'Absage ✗'}`);
+    await loadSessionPage(state.detailSessionId);
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`);
+    btn.disabled = false;
+  }
+}
+
+dom.detailConfirmBtn.addEventListener('click', () => setMyRegistration('CONFIRMED', dom.detailConfirmBtn));
+dom.detailDeclineBtn.addEventListener('click', () => setMyRegistration('DECLINED', dom.detailDeclineBtn));
+
+async function addGuest() {
+  const label = dom.guestName.value.trim();
+  if (!label) {
+    showToast(ERROR_MESSAGES.INVALID_GUEST_DATA);
+    return;
+  }
+  dom.guestAddBtn.disabled = true;
+  try {
+    await callApi('addGuest', { sessionId: state.detailSessionId, label });
+    dom.guestName.value = '';
+    showToast('Gast angemeldet.');
+    await loadSessionPage(state.detailSessionId);
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  } finally {
+    dom.guestAddBtn.disabled = false;
+  }
+}
+
+dom.guestAddBtn.addEventListener('click', addGuest);
+dom.guestName.addEventListener('keydown', e => {
+  if (e.key === 'Enter') addGuest();
 });
 
 // Persona Change (demo only)
@@ -642,11 +876,11 @@ function renderPlayerRankSummary(standings, currentYear) {
 
   const cardBtn = dom.playerRankSummary.querySelector('#openLeaderboardCard');
   if (cardBtn) {
-    cardBtn.addEventListener('click', () => switchTab('leaderboard'));
+    cardBtn.addEventListener('click', openLeaderboard);
     cardBtn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        switchTab('leaderboard');
+        openLeaderboard();
       }
     });
   }
@@ -693,20 +927,17 @@ function renderSessions(sessions) {
     }
 
     const regLabel = session.confirmedCount === 1 ? 'Anmeldung' : 'Anmeldungen';
+    const guestText = session.guestCount > 0 ? ` + ${esc(session.guestCount)} ${session.guestCount === 1 ? 'Gast' : 'Gäste'}` : '';
 
     card.innerHTML = `
       <div class="session-header">
-        <div>
-          <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
-          <div class="session-venue">📍 Halle ${esc(session.venue)} &bull; ${esc(session.startLocal)} - ${esc(session.endLocal)} Uhr</div>
-          ${session.audience === 'YOUTH' || session.trainerName ? `<div class="session-venue">${session.audience === 'YOUTH' ? '🧒 Jugend' : ''}${session.audience === 'YOUTH' && session.trainerName ? ' &bull; ' : ''}${session.trainerName ? `👤 Trainer: ${esc(session.trainerName)}` : ''}</div>` : ''}
-        </div>
+        <div>${sessionHeadHtml(session)}</div>
         <span class="session-status-badge ${badgeClass}">${badgeLabel}</span>
       </div>
 
       <div class="registration-count-box">
         <span class="count-icon">👥</span>
-        <span class="count-text"><strong class="count-number">${esc(session.confirmedCount)}</strong> ${regLabel}</span>
+        <span class="count-text"><strong class="count-number">${esc(session.confirmedCount)}</strong> ${regLabel}${guestText}</span>
       </div>
 
       ${session.status === 'OPEN' ? `
@@ -719,7 +950,19 @@ function renderSessions(sessions) {
           </button>
         </div>
       ` : `<p style="font-size: 0.8rem; color: var(--gray-600); margin-top: 8px;">${badgeLabel}: keine Änderung mehr möglich.</p>`}
+      <div class="session-more">Details ›</div>
     `;
+
+    // The whole card opens the session page, the buttons keep their own function
+    card.dataset.clickable = 'true';
+    card.tabIndex = 0;
+    card.setAttribute('aria-label', `Details zu ${formatDate(session.dateLocal)}`);
+    card.addEventListener('click', event => {
+      if (!event.target.closest('button')) openSession(session.sessionId);
+    });
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && event.target === card) openSession(session.sessionId);
+    });
 
     // 1-Click Handlers with Loading State
     const confirmBtn = card.querySelector('[data-action="CONFIRMED"]');
@@ -841,19 +1084,12 @@ dom.refreshLeaderboardBtn.addEventListener('click', () => loadLeaderboard());
 // Organizer & Admin Tab, split into sub pages
 const STATUS_LABELS = { OPEN: 'Offen', CLOSING: 'Wird abgeschlossen', CLOSED: 'Abgeschlossen', CANCELED: 'Abgesagt', PLANNED: 'Geplant' };
 
-function showOrgaView(view, addHistory = true) {
+function showOrgaView(view) {
   state.orgaView = view;
   document.querySelectorAll('.orga-view').forEach(el => {
     el.hidden = el.id !== `orga-${view}`;
   });
-  // A history entry, so that the back button of the phone leads back to the menu
-  if (addHistory && view !== 'menu') history.pushState({ orgaView: view }, '');
-  window.scrollTo(0, 0);
 }
-
-window.addEventListener('popstate', event => {
-  showOrgaView(event.state?.orgaView || 'menu', false);
-});
 
 document.querySelectorAll('.orga-back').forEach(btn => {
   btn.addEventListener('click', () => history.back());
@@ -861,7 +1097,7 @@ document.querySelectorAll('.orga-back').forEach(btn => {
 
 document.querySelectorAll('[data-orga-view]').forEach(btn => {
   btn.addEventListener('click', () => {
-    showOrgaView(btn.dataset.orgaView);
+    navigate(() => showOrgaView(btn.dataset.orgaView));
     if (btn.dataset.orgaView === 'system') refreshCorrectInfo();
   });
 });
@@ -881,7 +1117,7 @@ async function loadOrgaTab() {
   // The lists for the selection fields, the session page needs them
   await loadTemplates();
   if (isAdmin) await loadPlayerLinks();
-  if (state.orgaView === 'session' && state.orgaSessionId) await loadRoster(state.orgaSessionId);
+  if (state.detailSessionId) await loadSessionPage(state.detailSessionId);
 }
 
 function renderOrgaMenu() {
@@ -893,7 +1129,7 @@ function renderOrgaMenu() {
     const detail = document.createElement('span');
     detail.textContent = sessionLabel(next);
     dom.orgaNextBtn.append(detail);
-    dom.orgaNextBtn.onclick = () => openOrgaSession(next.sessionId);
+    dom.orgaNextBtn.onclick = () => openSession(next.sessionId);
   }
 
   dom.orgaSessionList.replaceChildren();
@@ -908,22 +1144,9 @@ function renderOrgaMenu() {
     const status = document.createElement('span');
     status.textContent = `${STATUS_LABELS[s.status] || s.status} · ${s.confirmedCount} ${s.confirmedCount === 1 ? 'Zusage' : 'Zusagen'}`;
     btn.append(status);
-    btn.addEventListener('click', () => openOrgaSession(s.sessionId));
+    btn.addEventListener('click', () => openSession(s.sessionId));
     dom.orgaSessionList.append(btn);
   });
-}
-
-async function openOrgaSession(sessionId) {
-  state.orgaSessionId = sessionId;
-  dom.orgaSessionTitle.textContent = '';
-  dom.orgaSessionHint.textContent = '';
-  dom.orgaRosterContainer.textContent = 'Lade …';
-  [dom.walkInBox, dom.sessionEditBox, dom.closeBox, dom.cancelSessionBox].forEach(box => {
-    box.open = false;
-    box.hidden = true;
-  });
-  showOrgaView('session');
-  await loadRoster(sessionId);
 }
 
 function fillSelect(select, entries) {
@@ -1012,7 +1235,6 @@ async function loadRoster(sessionId) {
 
 function renderRoster(sessionId, roster, session, otherPlayers) {
   dom.orgaRosterContainer.replaceChildren();
-  dom.orgaSessionTitle.textContent = sessionLabel(session);
 
   const isOpen = session.status === 'OPEN';
   const hints = {
@@ -1126,7 +1348,7 @@ dom.correctBtn.addEventListener('click', async () => {
 });
 
 dom.closeSessionBtn.addEventListener('click', async () => {
-  const sessionId = state.orgaSessionId;
+  const sessionId = state.detailSessionId;
   if (!confirm('Termin jetzt schon abschließen? Sonst geschieht das automatisch gegen 23 Uhr. Alle als anwesend Markierten bekommen +1 Punkt, danach sind keine Änderungen mehr möglich.')) {
     return;
   }
@@ -1143,7 +1365,7 @@ dom.closeSessionBtn.addEventListener('click', async () => {
 });
 
 dom.walkInBtn.addEventListener('click', async () => {
-  const sessionId = state.orgaSessionId;
+  const sessionId = state.detailSessionId;
   dom.walkInBtn.disabled = true;
   try {
     await callApi('setAttendance', { sessionId, playerId: dom.walkInSelect.value, state: 'PRESENT' });
@@ -1166,7 +1388,7 @@ dom.cancelSessionBtn.addEventListener('click', async () => {
   }
   dom.cancelSessionBtn.disabled = true;
   try {
-    await callApi('cancelSession', { sessionId: state.orgaSessionId, reason });
+    await callApi('cancelSession', { sessionId: state.detailSessionId, reason });
     dom.cancelReason.value = '';
     showToast('Termin abgesagt.');
     await loadOrgaTab();
@@ -1216,7 +1438,7 @@ dom.unlinkBtn.addEventListener('click', async () => {
 dom.templateSelect.addEventListener('change', showTemplate);
 
 dom.saveSessionBtn.addEventListener('click', async () => {
-  const sessionId = state.orgaSessionId;
+  const sessionId = state.detailSessionId;
   dom.saveSessionBtn.disabled = true;
   try {
     await callApi('updateSession', {

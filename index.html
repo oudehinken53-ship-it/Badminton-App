@@ -61,6 +61,7 @@
 
     <!-- Tab 1: Sessions (Trainings) -->
     <section id="tab-sessions" class="tab-content active">
+      <div id="trainingList">
       <!-- Player Ranking Position in Current Year (Trainingswertung) -->
       <div id="playerRankSummary" class="player-rank-summary" aria-live="polite">
         <!-- Rendered dynamically by app.js -->
@@ -73,65 +74,27 @@
       <div id="sessionList" aria-live="polite">
         <!-- Rendered by app.js -->
       </div>
-    </section>
+      </div>
 
-    <!-- Tab 2: Preferences (Stammtage) -->
-    <section id="tab-preferences" class="tab-content">
-      <h2 class="section-title">Meine Stammspieltage</h2>
-      <div class="pref-card">
-        <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 16px;">
-          Aktiviere deine regelmäßigen Trainingstage. Du wirst dann bei jeder neuen Woche automatisch als Teilnehmer vorgemerkt.
-        </p>
-
-        <div id="prefList" aria-live="polite">
-          <!-- Rendered by app.js from the standard sessions -->
+      <div id="trainingDetail" hidden>
+        <button class="orga-back" type="button">← Zurück</button>
+        <div id="detailHead"></div>
+        <div id="detailActions" class="action-buttons" hidden>
+          <button id="detailConfirmBtn" class="btn btn-confirm">✓ Zusagen</button>
+          <button id="detailDeclineBtn" class="btn btn-decline">✗ Absagen</button>
         </div>
 
-        <button id="savePreferencesBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-          ✓ Stammtage speichern
-        </button>
-      </div>
-    </section>
+        <div id="detailParticipantsBox">
+          <div id="detailParticipantsTitle" class="orga-roster-title"></div>
+          <div id="detailParticipants"></div>
+        </div>
 
-    <!-- Tab 3: Leaderboard (Jahreswertung) -->
-    <section id="tab-leaderboard" class="tab-content">
-      <h2 class="section-title">
-        <span>Jahressieger <span id="currentYear">2026</span></span>
-        <button id="refreshLeaderboardBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
-      </h2>
-      <table class="leaderboard-table" aria-label="Rangliste Jahreswertung">
-        <thead>
-          <tr>
-            <th style="width: 50px;">Rang</th>
-            <th>Spieler</th>
-            <th style="text-align: right;">Teilnahmen</th>
-          </tr>
-        </thead>
-        <tbody id="leaderboardBody">
-          <!-- Rendered by app.js -->
-        </tbody>
-      </table>
-    </section>
-
-    <!-- Tab 4: Organizer & Admin Panel -->
-    <section id="tab-admin" class="tab-content">
-      <div id="orga-menu" class="orga-view">
-        <h2 class="section-title">Trainer & Admin</h2>
-        <button id="orgaNextBtn" class="orga-menu-item orga-menu-next" type="button"></button>
-        <button class="orga-menu-item" type="button" data-orga-view="sessions">📅 Termine<span>Liste, zusätzlicher Termin</span></button>
-        <button class="orga-menu-item" type="button" data-orga-view="templates">🔁 Standardtermine<span>Wiederkehrende Zeiten</span></button>
-        <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
-        <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur & System<span>Punkte korrigieren, Prüfung</span></button>
-      </div>
-
-      <div id="orga-session" class="orga-view" hidden>
-        <button class="orga-back" type="button">← Zurück</button>
-        <h2 id="orgaSessionTitle" class="section-title"></h2>
+        <div id="orgaSessionTools" hidden>
         <p id="orgaSessionHint" style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 12px;"></p>
         <div id="orgaRosterContainer" aria-live="polite"></div>
 
         <details id="walkInBox" class="orga-details">
-          <summary>+ Weitere Person eintragen</summary>
+          <summary>+ Weiteres Mitglied eintragen</summary>
           <div style="display: flex; gap: 8px; margin-top: 8px;">
             <select id="walkInSelect" aria-label="Person auswählen" class="demo-selector" style="flex: 1; min-width: 0; padding: 10px; font-size: 0.9rem;"></select>
             <button id="walkInBtn" class="btn btn-confirm" style="flex: none;">Eintragen</button>
@@ -167,6 +130,69 @@
           <input id="cancelReason" type="text" maxlength="200" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;" placeholder="z. B. Halle gesperrt">
           <button id="cancelSessionBtn" class="btn btn-decline" style="width: 100%; margin-top: 8px;">✗ Termin absagen</button>
         </details>
+        </div>
+
+        <div id="detailGuestsTitle" class="orga-roster-title"></div>
+        <div id="detailGuests"></div>
+        <details id="guestBox" class="orga-details" hidden>
+          <summary>+ Gast anmelden</summary>
+          <p style="font-size: 0.85rem; color: var(--gray-600); margin-top: 8px;">Zum Beispiel fürs Schnuppertraining. Gäste bekommen keine Punkte.</p>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <input id="guestName" type="text" maxlength="40" autocomplete="off" aria-label="Name des Gastes" placeholder="Name" class="demo-selector" style="flex: 1; min-width: 0; padding: 10px; font-size: 0.9rem;">
+            <button id="guestAddBtn" class="btn btn-confirm" style="flex: none;">Anmelden</button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Tab 2: Preferences (Stammtage) -->
+    <section id="tab-preferences" class="tab-content">
+      <h2 class="section-title">Meine Stammspieltage</h2>
+      <div class="pref-card">
+        <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 16px;">
+          Aktiviere deine regelmäßigen Trainingstage. Du wirst dann bei jeder neuen Woche automatisch als Teilnehmer vorgemerkt.
+        </p>
+
+        <div id="prefList" aria-live="polite">
+          <!-- Rendered by app.js from the standard sessions -->
+        </div>
+
+        <button id="savePreferencesBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+          ✓ Stammtage speichern
+        </button>
+      </div>
+    </section>
+
+    <!-- Tab 3: Leaderboard (Jahreswertung) -->
+    <section id="tab-leaderboard" class="tab-content">
+      <button class="orga-back" type="button">← Zurück</button>
+      <h2 class="section-title">
+        <span>Jahressieger <span id="currentYear">2026</span></span>
+        <button id="refreshLeaderboardBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
+      </h2>
+      <table class="leaderboard-table" aria-label="Rangliste Jahreswertung">
+        <thead>
+          <tr>
+            <th style="width: 50px;">Rang</th>
+            <th>Spieler</th>
+            <th style="text-align: right;">Teilnahmen</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+          <!-- Rendered by app.js -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Tab 4: Organizer & Admin Panel -->
+    <section id="tab-admin" class="tab-content">
+      <div id="orga-menu" class="orga-view">
+        <h2 class="section-title">Trainer & Admin</h2>
+        <button id="orgaNextBtn" class="orga-menu-item orga-menu-next" type="button"></button>
+        <button class="orga-menu-item" type="button" data-orga-view="sessions">📅 Termine<span>Liste, zusätzlicher Termin</span></button>
+        <button class="orga-menu-item" type="button" data-orga-view="templates">🔁 Standardtermine<span>Wiederkehrende Zeiten</span></button>
+        <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
+        <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur & System<span>Punkte korrigieren, Prüfung</span></button>
       </div>
 
       <div id="orga-sessions" class="orga-view" hidden>
@@ -197,7 +223,7 @@
         <button class="orga-back" type="button">← Zurück</button>
         <h2 class="section-title">Standardtermine</h2>
         <div class="pref-card" id="templateCard">
-          <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 8px;">Daraus entstehen automatisch die Termine der nächsten 4 Wochen.</p>
+          <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 8px;">Daraus entstehen automatisch die Termine der nächsten 2 Wochen.</p>
           <label for="templateSelect" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Standardtermin:</label>
           <select id="templateSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
           <label for="templateWeekday" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Wochentag:</label>
@@ -298,10 +324,6 @@
     <button class="nav-tab" data-tab="preferences">
       <span class="icon">⚙️</span>
       <span>Stammtage</span>
-    </button>
-    <button class="nav-tab" data-tab="leaderboard">
-      <span class="icon">🏆</span>
-      <span>Jahressieger</span>
     </button>
     <button class="nav-tab" data-tab="admin" id="adminNavTab" style="display: none;">
       <span class="icon">📋</span>
