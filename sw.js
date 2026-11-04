@@ -1,7 +1,7 @@
 // Service Worker for Badminton Management System 2.0
 // Caches ONLY static assets. Never caches API responses, private user data or tokens.
 
-const CACHE_NAME = 'bms-static-v2.20';
+const CACHE_NAME = 'bms-static-v2.21';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,11 @@ const STATIC_ASSETS = [
   './app.js',
   './scoring.js',
   './config.js',
-  './manifest.json'
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png',
+  './apple-touch-icon.png'
 ];
 
 self.addEventListener('install', event => {
