@@ -185,6 +185,7 @@ const dom = {
   settingsViewGroup: document.getElementById('settingsViewGroup'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
   sessionViewHint: document.getElementById('sessionViewHint'),
+  syncHint: document.getElementById('syncHint'),
   settingsRankingNote: document.getElementById('settingsRankingNote'),
   rankingGroupTabs: document.getElementById('rankingGroupTabs'),
   rankingMemberSearch: document.getElementById('rankingMemberSearch'),
@@ -335,8 +336,99 @@ async function callApi(action, data = {}) {
     throw apiError(result.code || 'BACKEND_ERROR');
   }
   if (result.deviceToken) saveDeviceToken(result.deviceToken);
+  if (!READ_ACTIONS.has(action)) clearReadCache();
   return result.data;
 }
+
+// The last answer of a read is shown at once and replaced as soon as the server has answered. Anything
+// that changes data empties the cache, so an own change is never hidden by an older answer. Attendance and
+// rosters are never cached, their version numbers have to be current. Only what a member sees about
+// themselves survives a reload on the device; lists of other people stay in memory.
+const STORED_READS = new Set(['whoami', 'listSessions', 'listTemplates', 'getPreferences', 'getProgress']);
+const MEMORY_READS = new Set(['getRankings', 'getLeaderboard', 'getSessionDetail']);
+const READ_ACTIONS = new Set([...STORED_READS, ...MEMORY_READS, 'getAttendance', 'getSessionRoster', 'getSeasonArchive',
+  'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration']);
+const READ_CACHE_KEY = 'bms_read_cache';
+const READ_CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
+const readCache = new Map();
+const latestRead = new Map();
+let pendingRefreshes = 0;
+
+function loadStoredReads() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(READ_CACHE_KEY) || '{}');
+    Object.entries(stored).forEach(([key, entry]) => {
+      if (Date.now() - entry.at < READ_CACHE_MAX_AGE_MS) readCache.set(key, entry);
+    });
+  } catch {
+    readCache.clear();
+  }
+}
+
+function storeReads() {
+  try {
+    const stored = {};
+    readCache.forEach((entry, key) => {
+      if (entry.stored) stored[key] = entry;
+    });
+    localStorage.setItem(READ_CACHE_KEY, JSON.stringify(stored));
+  } catch {
+    // Without storage the app just loads as before
+  }
+}
+
+function clearReadCache() {
+  readCache.clear();
+  try {
+    localStorage.removeItem(READ_CACHE_KEY);
+  } catch {
+    // Nothing stored then
+  }
+}
+
+function setRefreshing(change) {
+  pendingRefreshes += change;
+  dom.syncHint.hidden = pendingRefreshes === 0;
+}
+
+/**
+ * apply(data, isOldAnswer) draws a page. With a stored answer it runs at once, and again when the server
+ * has something else to say. options.always: also when nothing changed, options.slot: only the newest
+ * request of this slot may draw, so a slow older answer cannot replace a newer page.
+ */
+async function cachedRead(action, data, apply, options = {}) {
+  if (state.persona !== 'live') {
+    const answer = await callApi(action, data);
+    await apply(answer, false);
+    return answer;
+  }
+  const key = action + JSON.stringify(data);
+  const slot = options.slot || action;
+  const ticket = {};
+  latestRead.set(slot, ticket);
+  const hit = readCache.get(key);
+  if (hit) Promise.resolve(apply(hit.data, true)).catch(err => console.warn(err));
+
+  setRefreshing(1);
+  try {
+    const fresh = await callApi(action, data);
+    // Not while a change arrived in between, that one emptied the cache for a reason
+    const entry = { data: fresh, at: Date.now(), stored: STORED_READS.has(action) };
+    readCache.set(key, entry);
+    if (entry.stored) storeReads();
+    const changed = !hit || JSON.stringify(hit.data) !== JSON.stringify(fresh);
+    if (latestRead.get(slot) === ticket && (changed || options.always)) await apply(fresh, false);
+    return fresh;
+  } catch (err) {
+    if (!hit || err.code === 'UNAUTHENTICATED' || err.code === 'UNLINKED_ACCOUNT') throw err;
+    showToast('Konnte nicht aktualisieren, du siehst den letzten Stand.', 6000);
+    return hit.data;
+  } finally {
+    setRefreshing(-1);
+  }
+}
+
+loadStoredReads();
 
 // Sample data for the demo: everything relative to today, so that the new functions can always be shown
 const DEMO_RULES = { ...BMS_SCORING_DEFAULT_RULES, attendanceFrom: '2000-01-01', validFrom: '2000-01-01' };
@@ -973,8 +1065,19 @@ function sessionHeadHtml(session) {
 
 async function loadSessionPage(sessionId) {
   try {
-    const detail = await callApi('getSessionDetail', { sessionId });
-    if (state.detailSessionId !== sessionId) return;
+    let extras = null;
+    await cachedRead('getSessionDetail', { sessionId }, detail => {
+      if (state.detailSessionId !== sessionId) return;
+      drawSessionPage(detail);
+      if (!extras) extras = loadSessionExtras(sessionId);
+    }, { slot: 'sessionDetail' });
+    await extras;
+  } catch (err) {
+    dom.detailHead.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+function drawSessionPage(detail) {
     const { session, myRegistration, participants, guests } = detail;
     const isOpen = session.status === 'OPEN';
     const canManage = state.currentUser?.role === 'ORGANIZER' || state.currentUser?.role === 'ADMIN';
@@ -998,17 +1101,16 @@ async function loadSessionPage(sessionId) {
     });
 
     renderGuests(guests, isOpen);
-
-    if (state.sharedSession) await loadAttendance(sessionId);
-
     dom.orgaSessionTools.hidden = !canManage;
-    if (canManage) {
-      if (dom.editVenue.options.length === 0) await loadTemplates();
-      await loadRoster(sessionId);
-    }
-  } catch (err) {
-    dom.detailHead.textContent = `Fehler: ${err.message}`;
-  }
+}
+
+async function loadSessionExtras(sessionId) {
+  const canManage = state.currentUser?.role === 'ORGANIZER' || state.currentUser?.role === 'ADMIN';
+  await Promise.all([
+    state.sharedSession ? loadAttendance(sessionId) : null,
+    canManage && dom.editVenue.options.length === 0 ? loadTemplates() : null,
+    canManage ? loadRoster(sessionId) : null
+  ]);
 }
 
 function renderGuests(guests, isOpen) {
@@ -1096,6 +1198,7 @@ dom.personaSelect.addEventListener('change', async e => {
 // Nobody signed in: no data on screen, a clear message instead
 function showSignedOut(message) {
   state.currentUser = null;
+  clearReadCache();
   dom.userName.textContent = 'Nicht angemeldet';
   dom.roleBadge.textContent = 'Gast';
   dom.adminNavTab.style.display = 'none';
@@ -1108,24 +1211,32 @@ function showSignedOut(message) {
 }
 
 // Init User Profile
+function applyUser(me) {
+  state.currentUser = me;
+  dom.userName.textContent = `${me.firstName} ${me.lastName}`;
+  dom.roleBadge.textContent = ROLE_LABELS[me.role] || me.role;
+  dom.loginBox.style.display = 'none';
+  // An older backend does not know the setting, then there is nothing to offer
+  dom.settingsBtn.hidden = !me.sessionView;
+  dom.settingsRankingNote.hidden = !me.rankingGroup;
+  if (me.rankingGroup) dom.settingsRankingNote.textContent = `Du wirst in der Rangliste „${RANKING_GROUP_LABELS[me.rankingGroup]}" gewertet. Das legt dein Trainer oder Admin fest.`;
+  state.rankingGroup = null;
+
+  // Show Orga/Admin tab if role permits
+  const canSeeAdmin = me.role === 'ORGANIZER' || me.role === 'ADMIN';
+  dom.adminNavTab.style.display = canSeeAdmin ? 'flex' : 'none';
+}
+
 async function initUser() {
   try {
-    const me = await callApi('whoami');
-    state.currentUser = me;
-    dom.userName.textContent = `${me.firstName} ${me.lastName}`;
-    dom.roleBadge.textContent = ROLE_LABELS[me.role] || me.role;
-    dom.loginBox.style.display = 'none';
-    // An older backend does not know the setting, then there is nothing to offer
-    dom.settingsBtn.hidden = !me.sessionView;
-    dom.settingsRankingNote.hidden = !me.rankingGroup;
-    if (me.rankingGroup) dom.settingsRankingNote.textContent = `Du wirst in der Rangliste „${RANKING_GROUP_LABELS[me.rankingGroup]}" gewertet. Das legt dein Trainer oder Admin fest.`;
-    state.rankingGroup = null;
-
-    // Show Orga/Admin tab if role permits
-    const canSeeAdmin = me.role === 'ORGANIZER' || me.role === 'ADMIN';
-    dom.adminNavTab.style.display = canSeeAdmin ? 'flex' : 'none';
-
-    await loadSessions();
+    let started = false;
+    await cachedRead('whoami', {}, me => {
+      applyUser(me);
+      if (!started) {
+        started = true;
+        loadSessions();
+      }
+    });
   } catch (err) {
     if (err.code !== 'UNLINKED_ACCOUNT' && err.code !== 'UNAUTHENTICATED') showSignedOut(err.message);
   }
@@ -1133,14 +1244,13 @@ async function initUser() {
 
 // Sessions & Personal Rank Rendering
 async function loadSessions() {
+  loadPlayerRank();
   try {
-    const [sessions] = await Promise.all([
-      callApi('listSessions'),
-      loadPlayerRank()
-    ]);
-    state.sessions = sessions;
-    renderSessionViewHint();
-    renderSessions(sessions);
+    await cachedRead('listSessions', {}, sessions => {
+      state.sessions = sessions;
+      renderSessionViewHint();
+      renderSessions(sessions);
+    });
   } catch (err) {
     dom.sessionList.innerHTML = `<p style="color: var(--danger);">Fehler: ${esc(err.message)}</p>`;
   }
@@ -1186,15 +1296,17 @@ async function loadPlayerRank() {
   if (!dom.playerRankSummary || !state.currentUser) return;
   try {
     // The app can be newer than the backend, then the old card stays
-    const progress = await callApi('getProgress').catch(() => null);
-    if (progress && progress.active) {
-      renderProgressCard(progress);
-      return;
-    }
+    let active = false;
+    await cachedRead('getProgress', {}, progress => {
+      active = Boolean(progress && progress.active);
+      if (active) renderProgressCard(progress);
+    }).catch(() => null);
+    if (active) return;
     const currentYear = String(new Date().getFullYear());
-    const data = await callApi('getLeaderboard', { seasonYear: currentYear });
-    state.leaderboard = data.standings || [];
-    renderPlayerRankSummary(state.leaderboard, currentYear);
+    await cachedRead('getLeaderboard', { seasonYear: currentYear }, data => {
+      state.leaderboard = data.standings || [];
+      renderPlayerRankSummary(state.leaderboard, currentYear);
+    }, { slot: 'rankCard' });
   } catch (err) {
     console.warn('Ranglisten-Platzierung konnte nicht geladen werden:', err);
   }
@@ -1360,12 +1472,23 @@ dom.refreshSessionsBtn.addEventListener('click', () => loadSessions());
 
 // Preferences Tab
 async function loadPreferences() {
-  try {
-    const [{ templates }, prefs] = await Promise.all([callApi('listTemplates'), callApi('getPreferences')]);
-    state.preferences = prefs;
-    // A standing date that is already on stays listed, otherwise it could not be switched off
+  // Older answers can be looked at, but changed only once the current state is known
+  const parts = {};
+  const draw = () => {
+    if (!parts.templates || !parts.prefs) return;
+    state.preferences = parts.prefs;
     const view = state.currentUser?.sessionView;
-    renderPreferences(templates.filter(t => t.active && (matchesSessionView(t.audience, view) || prefs[t.templateId] === true)), prefs);
+    // A standing date that is already on stays listed, otherwise it could not be switched off
+    renderPreferences(parts.templates.filter(t => t.active && (matchesSessionView(t.audience, view) || parts.prefs[t.templateId] === true)), parts.prefs);
+    const locked = parts.templatesOld || parts.prefsOld;
+    dom.prefList.querySelectorAll('input').forEach(input => { input.disabled = locked; });
+    dom.savePreferencesBtn.disabled = locked;
+  };
+  try {
+    await Promise.all([
+      cachedRead('listTemplates', {}, (data, old) => { parts.templates = data.templates; parts.templatesOld = old; draw(); }, { always: true, slot: 'prefTemplates' }),
+      cachedRead('getPreferences', {}, (data, old) => { parts.prefs = data; parts.prefsOld = old; draw(); }, { always: true })
+    ]);
   } catch (err) {
     showToast(`Fehler beim Laden der Präferenzen: ${err.message}`);
   }
@@ -1416,10 +1539,11 @@ async function loadLeaderboard() {
   try {
     const seasonYear = String(new Date().getFullYear());
     dom.currentYear.textContent = seasonYear;
-    // The app can be newer than the backend, then the old list stays
     const request = { seasonYear, yearMonth: state.rankingMonth };
     if (state.rankingGroup) request.rankingGroup = state.rankingGroup;
-    const rankings = await callApi('getRankings', request).catch(() => null);
+    let drawn = false;
+    const applyRankings = async rankings => {
+      drawn = true;
     state.rankings = rankings;
     const active = Boolean(rankings && rankings.active);
     if (active && rankings.rankingGroup) {
@@ -1438,11 +1562,17 @@ async function loadLeaderboard() {
       state.rankingMonth = rankings.yearMonth;
       if (state.rankingBoard === 'LEGACY') state.rankingBoard = 'ANNUAL';
     } else {
-      const data = await callApi('getLeaderboard', { seasonYear });
-      state.leaderboard = data.standings;
-      if (state.rankingBoard !== 'ARCHIVE') state.rankingBoard = 'LEGACY';
+      await cachedRead('getLeaderboard', { seasonYear }, data => {
+        state.leaderboard = data.standings;
+        if (state.rankingBoard !== 'ARCHIVE') state.rankingBoard = 'LEGACY';
+        setBoard(state.rankingBoard);
+      });
+      return;
     }
     setBoard(state.rankingBoard);
+    };
+    // The app can be newer than the backend, then the old list stays
+    await cachedRead('getRankings', request, applyRankings).catch(() => (drawn ? null : applyRankings(null)));
   } catch (err) {
     dom.leaderboardBody.innerHTML = `<tr><td colspan="3" style="color: var(--danger);">Fehler: ${esc(err.message)}</td></tr>`;
   }
@@ -1840,8 +1970,7 @@ function badgesHtml(badges) {
 async function loadProfile(seasonYear) {
   dom.profileBody.textContent = 'Lade …';
   try {
-    const progress = await callApi('getProgress', seasonYear ? { seasonYear } : {});
-    renderProfile(progress);
+    await cachedRead('getProgress', seasonYear ? { seasonYear } : {}, renderProfile, { slot: 'profile' });
   } catch (err) {
     dom.profileBody.textContent = `Fehler: ${err.message}`;
   }
@@ -2102,14 +2231,27 @@ async function loadOrgaTab() {
   dom.orgaMenuAccess.hidden = !isAdmin;
   dom.orgaMenuSystem.hidden = !isAdmin;
 
-  await loadSessions();
-  // Trainers manage every session, whatever they chose to see on their own start page
-  state.orgaSessions = await callApi('listSessions', { allAudiences: true });
-  renderOrgaMenu();
+  // Says that something is coming, the first load can take some seconds
+  if (!state.orgaSessions) {
+    dom.orgaNextBtn.hidden = false;
+    dom.orgaNextBtn.disabled = true;
+    dom.orgaNextBtn.textContent = 'Lade Termine …';
+    dom.orgaSessionList.textContent = 'Lade …';
+  }
 
-  // The lists for the selection fields, the session page needs them
-  await loadTemplates();
-  if (isAdmin) await loadPlayerLinks();
+  // Trainers manage every session, whatever they chose to see on their own start page
+  await Promise.all([
+    cachedRead('listSessions', { allAudiences: true }, sessions => {
+      state.orgaSessions = sessions;
+      renderOrgaMenu();
+    }, { slot: 'orgaSessions' }).catch(err => {
+      dom.orgaNextBtn.hidden = true;
+      dom.orgaSessionList.textContent = `Fehler: ${err.message}`;
+    }),
+    // The lists for the selection fields, the session page needs them
+    loadTemplates(),
+    isAdmin ? loadPlayerLinks() : null
+  ]);
   if (state.detailSessionId) await loadSessionPage(state.detailSessionId);
 }
 
@@ -2118,6 +2260,7 @@ function renderOrgaMenu() {
   const sessions = state.orgaSessions || state.sessions;
   const next = sessions.find(s => (s.status === 'OPEN' || s.status === 'CLOSING') && s.dateLocal >= today);
   dom.orgaNextBtn.hidden = !next;
+  dom.orgaNextBtn.disabled = false;
   if (next) {
     dom.orgaNextBtn.replaceChildren(next.dateLocal === today ? '🏸 Heute' : '🏸 Nächster Termin');
     const detail = document.createElement('span');
