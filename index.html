@@ -65,6 +65,7 @@
       <label><input type="radio" name="sessionView" value="ADULT"> Nur Erwachsene</label>
       <label><input type="radio" name="sessionView" value="YOUTH"> Nur Jugend</label>
     </fieldset>
+    <p id="settingsRankingNote" class="settings-note" hidden></p>
     <p class="settings-note">Termine, für die du zugesagt hast oder bei denen du als anwesend eingetragen bist, bleiben immer sichtbar.</p>
     <button id="settingsCloseBtn" class="btn btn-primary" type="button">Schließen</button>
   </dialog>
@@ -212,6 +213,10 @@
         <span>Wertungen <span id="currentYear">2026</span></span>
         <button id="refreshLeaderboardBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
       </h2>
+      <div id="rankingGroupTabs" class="ranking-tabs" hidden>
+        <button type="button" data-group="ADULT">Erwachsene</button>
+        <button type="button" data-group="YOUTH">Jugend</button>
+      </div>
       <div id="rankingTabs" class="ranking-tabs">
         <button type="button" data-board="LEGACY">Saison 2026</button>
         <button type="button" data-board="ANNUAL">Jahrescup</button>
@@ -250,6 +255,7 @@
         <button id="orgaNextBtn" class="orga-menu-item orga-menu-next" type="button"></button>
         <button class="orga-menu-item" type="button" data-orga-view="sessions">📅 Termine<span>Liste, zusätzlicher Termin</span></button>
         <button class="orga-menu-item" type="button" data-orga-view="templates">🔁 Standardtermine<span>Wiederkehrende Zeiten</span></button>
+        <button class="orga-menu-item" type="button" data-orga-view="ranking">🏅 Ranglisten<span>Wer in welcher Rangliste steht</span></button>
         <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
         <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur & System<span>Punkte korrigieren, Prüfung</span></button>
       </div>
@@ -330,6 +336,14 @@
           </label>
           <button id="saveTemplateBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Standardtermin speichern</button>
         </div>
+      </div>
+
+      <div id="orga-ranking" class="orga-view" hidden>
+        <button class="orga-back" type="button">← Zurück</button>
+        <h2 class="section-title">Ranglisten</h2>
+        <p class="settings-note">Trainingstage zählen aus allen Terminen. Jede Person steht aber nur in einer Rangliste. Automatisch heißt: U18 laut Jahrgang in der Jugend, sonst bei den Erwachsenen. Eine Änderung verschiebt die ganze laufende Saison der Person in die andere Liste.</p>
+        <input id="rankingMemberSearch" type="search" class="demo-selector" placeholder="Name suchen" aria-label="Mitglied suchen" style="width: 100%; padding: 10px; font-size: 0.9rem; margin-bottom: 10px;">
+        <div id="rankingMemberList" aria-live="polite"></div>
       </div>
 
       <div id="orga-access" class="orga-view" hidden>

@@ -147,6 +147,23 @@ function scoringMonthTotals_(events, yearMonth) {
 }
 
 // players: Map of playerId to { firstName, lastName }. Somebody who is not a member cannot appear.
+/**
+ * The ranking list somebody appears in. A choice by a trainer or admin wins. Without one the birth year
+ * decides by the usual age class: U18 is whoever turns at most 17 in that season, so nobody changes list
+ * in the middle of a season. Without a birth year the person counts as an adult.
+ */
+function scoringRankingGroup_(player, seasonYear) {
+  if (!player) return 'ADULT';
+  if (player.rankingGroup === 'ADULT' || player.rankingGroup === 'YOUTH') return player.rankingGroup;
+  const birthYear = Number(player.birthYear);
+  if (!birthYear) return 'ADULT';
+  return Number(seasonYear) - birthYear < 18 ? 'YOUTH' : 'ADULT';
+}
+
+function scoringPlayersOfGroup_(players, group, seasonYear) {
+  return new Map(Array.from(players.entries()).filter(entry => scoringRankingGroup_(entry[1], seasonYear) === group));
+}
+
 function scoringStandings_(events, players, seasonYear, yearMonth) {
   const withName = entry => {
     const p = players.get(entry.playerId);

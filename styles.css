@@ -183,6 +183,10 @@ header.app-header {
 .settings-group label { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .settings-note { font-size: 0.85rem; color: var(--gray-600, #555); margin: 10px 0 14px; }
 .settings-dialog .btn { width: 100%; }
+.ranking-member { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
+.ranking-member-name { flex: 1 1 100%; font-weight: 600; }
+.ranking-member input { width: 90px; padding: 10px; font-size: 0.9rem; }
+.ranking-member select { flex: 1; min-width: 0; padding: 10px; font-size: 0.9rem; }
 .session-view-hint { font-size: 0.85rem; color: var(--gray-600, #555); margin: 0 0 10px; }
 
 .user-info-text {

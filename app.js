@@ -41,6 +41,7 @@ function saveDeviceToken(token) {
 }
 
 const ROLE_LABELS = { PLAYER: 'Spieler', ORGANIZER: 'Trainer', ADMIN: 'Admin' };
+const RANKING_GROUP_LABELS = { ADULT: 'Erwachsene', YOUTH: 'Jugend' };
 const SESSION_VIEW_LABELS = { ALL: 'Alle Termine', ADULT: 'Nur Erwachsene', YOUTH: 'Nur Jugend' };
 const matchesSessionView = (audience, view) => !view || view === 'ALL' || (audience || 'ADULT') === view;
 const WEEKDAYS = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
@@ -74,8 +75,8 @@ const mockDb = {
     ben: { playerId: 'p-ben', firstName: 'Ben', lastName: 'Schmidt', role: 'PLAYER', sub: '1002' },
     orga: { playerId: 'p-orga', firstName: 'Olaf', lastName: 'Orga', role: 'ORGANIZER', sub: '1003' },
     admin: { playerId: 'p-admin', firstName: 'Ada', lastName: 'Admin', role: 'ADMIN', sub: '1004' },
-    clara: { playerId: 'p-clara', firstName: 'Clara', lastName: 'Klein', role: 'PLAYER', sub: '1005' },
-    david: { playerId: 'p-david', firstName: 'David', lastName: 'Dorn', role: 'PLAYER', sub: '1006' },
+    clara: { playerId: 'p-clara', firstName: 'Clara', lastName: 'Klein', role: 'PLAYER', sub: '1005', birthYear: '2011', rankingGroup: 'ADULT' },
+    david: { playerId: 'p-david', firstName: 'David', lastName: 'Dorn', role: 'PLAYER', sub: '1006', birthYear: '2012' },
     emil: { playerId: 'p-emil', firstName: 'Emil', lastName: 'Ernst', role: 'PLAYER', sub: '1007' }
   },
   sessions: [],
@@ -184,6 +185,10 @@ const dom = {
   settingsViewGroup: document.getElementById('settingsViewGroup'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
   sessionViewHint: document.getElementById('sessionViewHint'),
+  settingsRankingNote: document.getElementById('settingsRankingNote'),
+  rankingGroupTabs: document.getElementById('rankingGroupTabs'),
+  rankingMemberSearch: document.getElementById('rankingMemberSearch'),
+  rankingMemberList: document.getElementById('rankingMemberList'),
   templateCard: document.getElementById('templateCard'),
   templateSelect: document.getElementById('templateSelect'),
   templateWeekday: document.getElementById('templateWeekday'),
@@ -266,6 +271,7 @@ const ERROR_MESSAGES = {
   ATTENDANCE_CONFLICT: 'Jemand anderes hat diesen Eintrag gerade geändert. Die Liste wurde neu geladen, bitte prüfen. Nichts wurde überschrieben.',
   ATTENDANCE_NOT_OPEN: 'Die Anwesenheit kann erst ab Beginn des Termins eingetragen werden.',
   INVALID_SESSION_VIEW: 'Diese Auswahl gibt es nicht.',
+  INVALID_RANKING_DATA: 'Bitte prüfe den Jahrgang und die Rangliste.',
   ATTENDANCE_WINDOW_CLOSED: 'Die Frist für diesen Termin ist vorbei. Korrekturen macht ein Admin.',
   CORRECTION_REASON_REQUIRED: 'Bitte gib eine Begründung für die Korrektur an.',
   CLIENT_UPDATE_REQUIRED: 'Deine App ist nicht aktuell. Bitte lade die Seite neu. Nichts wurde gespeichert.',
@@ -405,7 +411,7 @@ function demoWindow(session) {
 }
 
 function demoMembers() {
-  return new Map(Object.values(mockDb.users).map(u => [u.playerId, { firstName: u.firstName, lastName: u.lastName }]));
+  return new Map(Object.values(mockDb.users).map(u => [u.playerId, { firstName: u.firstName, lastName: u.lastName, birthYear: u.birthYear, rankingGroup: u.rankingGroup }]));
 }
 
 function demoCounts(session) {
@@ -427,7 +433,7 @@ function demoProgress(user, seasonYear) {
   const year = seasonYear || today.substring(0, 4);
   const yearMonth = today.substring(0, 7);
   const events = demoEvents();
-  const standings = scoringStandings_(events, demoMembers(), year, yearMonth);
+  const standings = scoringStandings_(events, scoringPlayersOfGroup_(demoMembers(), scoringRankingGroup_(user, year), year), year, yearMonth);
   const annual = standings.annual.find(e => e.playerId === user.playerId);
   const consistency = standings.consistency.find(e => e.playerId === user.playerId);
   const monthly = standings.monthly.find(e => e.playerId === user.playerId);
@@ -438,6 +444,7 @@ function demoProgress(user, seasonYear) {
     active: true,
     seasonYear: year,
     yearMonth,
+    rankingGroup: scoringRankingGroup_(user, year),
     seasons: [today.substring(0, 4)],
     week: scoringWeekSummary_(events, user.playerId, today),
     annual: { points, rank: annual ? annual.rank : null },
@@ -522,10 +529,15 @@ function demoSetAttendance(user, data) {
   return { sessionId: session.sessionId, playerId: data.playerId, state: data.state, version, updatedAt: at };
 }
 
+function demoRankingMember(u, seasonYear) {
+  return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, birthYear: u.birthYear || '', rankingGroup: u.rankingGroup || 'AUTO', effectiveGroup: scoringRankingGroup_(u, seasonYear) };
+}
+
 function demoRankings(user, data) {
   const today = berlinToday();
   const seasonYear = today.substring(0, 4);
   const events = demoEvents();
+  const group = RANKING_GROUP_LABELS[data.rankingGroup] ? data.rankingGroup : scoringRankingGroup_(user, seasonYear);
   const yearMonth = /^\d{4}-\d{2}$/.test(String(data.yearMonth || '')) ? data.yearMonth : today.substring(0, 7);
   const months = scoringMonthsOfSeason_(events, seasonYear);
   if (!months.includes(today.substring(0, 7))) months.push(today.substring(0, 7));
@@ -537,7 +549,9 @@ function demoRankings(user, data) {
     ruleVersion: 'demo',
     yearMonth,
     months,
-    ...scoringStandings_(events, demoMembers(), seasonYear, yearMonth)
+    rankingGroup: group,
+    myRankingGroup: scoringRankingGroup_(user, seasonYear),
+    ...scoringStandings_(events, scoringPlayersOfGroup_(demoMembers(), group, seasonYear), seasonYear, yearMonth)
   };
 }
 
@@ -560,7 +574,25 @@ async function runMockApi(action, data) {
 
   switch (action) {
     case 'whoami':
-      return { sessionView: 'ALL', ...user };
+      return { sessionView: 'ALL', ...user, rankingGroup: scoringRankingGroup_(user, berlinToday().substring(0, 4)) };
+
+    case 'listRankingMembers': {
+      if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
+      const seasonYear = berlinToday().substring(0, 4);
+      return { seasonYear, players: Object.values(mockDb.users).map(u => demoRankingMember(u, seasonYear)).sort((a, b) => a.lastName.localeCompare(b.lastName)) };
+    }
+
+    case 'setPlayerRanking': {
+      if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
+      const target = Object.values(mockDb.users).find(u => u.playerId === data.playerId);
+      if (!target) throw apiError('PLAYER_NOT_FOUND');
+      if (data.rankingGroup !== 'AUTO' && !RANKING_GROUP_LABELS[data.rankingGroup]) throw apiError('INVALID_RANKING_DATA');
+      const year = String(data.birthYear ?? '').trim();
+      if (year !== '' && !/^\d{4}$/.test(year)) throw apiError('INVALID_RANKING_DATA');
+      target.birthYear = year;
+      target.rankingGroup = data.rankingGroup === 'AUTO' ? '' : data.rankingGroup;
+      return demoRankingMember(target, berlinToday().substring(0, 4));
+    }
 
     case 'setSessionView': {
       if (!SESSION_VIEW_LABELS[data.view]) throw apiError('INVALID_SESSION_VIEW');
@@ -1082,6 +1114,9 @@ async function initUser() {
     dom.loginBox.style.display = 'none';
     // An older backend does not know the setting, then there is nothing to offer
     dom.settingsBtn.hidden = !me.sessionView;
+    dom.settingsRankingNote.hidden = !me.rankingGroup;
+    if (me.rankingGroup) dom.settingsRankingNote.textContent = `Du wirst in der Rangliste „${RANKING_GROUP_LABELS[me.rankingGroup]}" gewertet. Das legt dein Trainer oder Admin fest.`;
+    state.rankingGroup = null;
 
     // Show Orga/Admin tab if role permits
     const canSeeAdmin = me.role === 'ORGANIZER' || me.role === 'ADMIN';
@@ -1379,9 +1414,15 @@ async function loadLeaderboard() {
     const seasonYear = String(new Date().getFullYear());
     dom.currentYear.textContent = seasonYear;
     // The app can be newer than the backend, then the old list stays
-    const rankings = await callApi('getRankings', { seasonYear, yearMonth: state.rankingMonth }).catch(() => null);
+    const request = { seasonYear, yearMonth: state.rankingMonth };
+    if (state.rankingGroup) request.rankingGroup = state.rankingGroup;
+    const rankings = await callApi('getRankings', request).catch(() => null);
     state.rankings = rankings;
     const active = Boolean(rankings && rankings.active);
+    if (active && rankings.rankingGroup) {
+      state.rankingGroup = rankings.rankingGroup;
+      state.myRankingGroup = rankings.myRankingGroup;
+    }
 
     dom.rankingTabs.querySelectorAll('button').forEach(btn => {
       btn.hidden = btn.dataset.board === 'LEGACY' ? active : (!active && btn.dataset.board !== 'ARCHIVE');
@@ -1830,6 +1871,23 @@ dom.rankingTabs.querySelectorAll('button').forEach(btn => {
   });
 });
 
+dom.rankingGroupTabs.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    state.rankingGroup = btn.dataset.group;
+    await loadLeaderboard();
+    if (state.rankingBoard === 'ARCHIVE') await loadArchive(state.archive?.selected?.seasonYear);
+  });
+});
+
+function syncRankingGroupTabs(visible) {
+  dom.rankingGroupTabs.hidden = !visible;
+  dom.rankingGroupTabs.querySelectorAll('button').forEach(btn => {
+    const active = btn.dataset.group === state.rankingGroup;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+}
+
 dom.rankingMonth.addEventListener('change', () => {
   state.rankingMonth = dom.rankingMonth.value;
   loadLeaderboard();
@@ -1845,6 +1903,7 @@ function renderBoard() {
   dom.leaderboardValueHead.textContent = BOARD_LABELS[board];
   dom.rankingHint.textContent = '';
   dom.rankingMe.textContent = '';
+  syncRankingGroupTabs(board !== 'LEGACY' && board !== 'ARCHIVE' && Boolean(r && r.active && r.rankingGroup));
 
   if (board === 'ARCHIVE') {
     renderArchive();
@@ -1873,16 +1932,25 @@ function renderBoard() {
 function renderStandings(rows, field, myId) {
   const me = myId || state.currentUser?.playerId;
   const mine = rows.find(item => item.playerId === me);
+  const otherList = state.rankingBoard !== 'LEGACY' && state.myRankingGroup && state.rankingGroup !== state.myRankingGroup;
   dom.rankingMe.textContent = mine
     ? `Dein Platz: ${mine.rank}, ${mine[field]} ${BOARD_LABELS[state.rankingBoard]}`
-    : 'Du bist hier noch nicht eingetragen.';
+    : otherList
+      ? `Du wirst in der Rangliste „${RANKING_GROUP_LABELS[state.myRankingGroup]}" gewertet.`
+      : 'Du bist hier noch nicht eingetragen.';
   renderLeaderboard(rows, field);
 }
 
 async function loadArchive(seasonYear) {
   dom.leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--gray-600);">Lade …</td></tr>';
   try {
-    state.archive = await callApi('getSeasonArchive', seasonYear ? { seasonYear } : {});
+    const request = seasonYear ? { seasonYear } : {};
+    if (state.rankingGroup) request.rankingGroup = state.rankingGroup;
+    state.archive = await callApi('getSeasonArchive', request);
+    if (state.archive.rankingGroup) {
+      state.rankingGroup = state.archive.rankingGroup;
+      state.myRankingGroup = state.archive.myRankingGroup;
+    }
     if (state.rankingBoard === 'ARCHIVE') renderArchive();
   } catch (err) {
     dom.leaderboardBody.innerHTML = `<tr><td colspan="3" style="color: var(--danger);">Fehler: ${esc(err.message)}</td></tr>`;
@@ -1901,6 +1969,8 @@ function renderArchive() {
     return;
   }
   dom.rankingSeason.value = selected.seasonYear;
+  // The seasons of the old rules have one list for everybody
+  syncRankingGroupTabs(!selected.oldRules && Boolean(archive.rankingGroup));
   dom.leaderboardValueHead.textContent = selected.oldRules ? 'Teilnahmen' : 'Punkte';
   dom.rankingHint.textContent = selected.oldRules
     ? `Historische Wertung ${selected.seasonYear}, alte Regeln: nur Gesamtsummen, keine einzelnen Trainingstage. Stand ${formatDate(selected.sourceDate)}.`
@@ -1930,8 +2000,73 @@ document.querySelectorAll('[data-orga-view]').forEach(btn => {
   btn.addEventListener('click', () => {
     navigate(() => showOrgaView(btn.dataset.orgaView));
     if (btn.dataset.orgaView === 'system') refreshCorrectInfo();
+    if (btn.dataset.orgaView === 'ranking') loadRankingMembers();
   });
 });
+
+async function loadRankingMembers() {
+  dom.rankingMemberList.textContent = 'Lade …';
+  try {
+    const { players } = await callApi('listRankingMembers');
+    state.rankingMembers = players;
+    renderRankingMembers();
+  } catch (err) {
+    dom.rankingMemberList.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+function autoGroupLabel(member) {
+  // What automatic means for this person, so the choice is not a guess
+  const group = scoringRankingGroup_({ birthYear: member.birthYear }, new Date().getFullYear());
+  return `Automatisch (${RANKING_GROUP_LABELS[group]})`;
+}
+
+function renderRankingMembers() {
+  const needle = dom.rankingMemberSearch.value.trim().toLowerCase();
+  dom.rankingMemberList.replaceChildren();
+  (state.rankingMembers || [])
+    .filter(m => `${m.firstName} ${m.lastName}`.toLowerCase().includes(needle))
+    .forEach(member => {
+      const row = document.createElement('div');
+      row.className = 'ranking-member';
+      const name = document.createElement('div');
+      name.className = 'ranking-member-name';
+      name.textContent = `${member.firstName} ${member.lastName}`;
+      const year = document.createElement('input');
+      year.type = 'text';
+      year.inputMode = 'numeric';
+      year.maxLength = 4;
+      year.className = 'demo-selector';
+      year.placeholder = 'Jahrgang';
+      year.setAttribute('aria-label', `Jahrgang von ${member.firstName} ${member.lastName}`);
+      year.value = member.birthYear;
+      const select = document.createElement('select');
+      select.className = 'demo-selector';
+      select.setAttribute('aria-label', `Rangliste von ${member.firstName} ${member.lastName}`);
+      fillSelect(select, [['AUTO', autoGroupLabel(member)], ['ADULT', RANKING_GROUP_LABELS.ADULT], ['YOUTH', RANKING_GROUP_LABELS.YOUTH]]);
+      select.value = member.rankingGroup;
+      const save = async () => {
+        year.disabled = true;
+        select.disabled = true;
+        try {
+          const saved = await callApi('setPlayerRanking', { playerId: member.playerId, rankingGroup: select.value, birthYear: year.value.trim() });
+          Object.assign(member, saved);
+          showToast(`${member.firstName} ${member.lastName}: Rangliste ${RANKING_GROUP_LABELS[saved.effectiveGroup]}`);
+          state.rankingGroup = null;
+        } catch (err) {
+          showToast(`Fehler: ${err.message}`, 6000);
+        }
+        // Always shows what the server has stored
+        renderRankingMembers();
+      };
+      year.addEventListener('change', save);
+      select.addEventListener('change', save);
+      row.append(name, year, select);
+      dom.rankingMemberList.append(row);
+    });
+}
+
+dom.rankingMemberSearch.addEventListener('input', renderRankingMembers);
 
 function sessionLabel(s) {
   return `${formatDate(s.dateLocal)}, ${s.startLocal}–${s.endLocal}, ${s.venue}`;
