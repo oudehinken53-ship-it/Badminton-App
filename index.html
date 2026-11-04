@@ -37,6 +37,7 @@
       <div class="user-info-text">
         <span>👤</span>
         <span id="userName">Lade Profil...</span>
+        <button id="settingsBtn" class="settings-btn" type="button" aria-label="Einstellungen" hidden>⚙️</button>
       </div>
       <div id="personaWrap" style="display: none;">
         <select id="personaSelect" class="demo-selector" aria-label="Benutzer-Profil umschalten">
@@ -56,12 +57,25 @@
     </div>
   </header>
 
+  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">Einstellungen</h2>
+    <fieldset id="settingsViewGroup" class="settings-group">
+      <legend>Welche Termine möchtest du sehen?</legend>
+      <label><input type="radio" name="sessionView" value="ALL"> Alle Termine</label>
+      <label><input type="radio" name="sessionView" value="ADULT"> Nur Erwachsene</label>
+      <label><input type="radio" name="sessionView" value="YOUTH"> Nur Jugend</label>
+    </fieldset>
+    <p class="settings-note">Termine, für die du zugesagt hast oder bei denen du als anwesend eingetragen bist, bleiben immer sichtbar.</p>
+    <button id="settingsCloseBtn" class="btn btn-primary" type="button">Schließen</button>
+  </dialog>
+
   <!-- Main Container -->
   <main class="container">
 
     <!-- Tab 1: Sessions (Trainings) -->
     <section id="tab-sessions" class="tab-content active">
       <div id="trainingList">
+      <p id="sessionViewHint" class="session-view-hint" hidden></p>
       <div id="attendanceDue"></div>
       <!-- Player Ranking Position in Current Year (Trainingswertung) -->
       <div id="playerRankSummary" class="player-rank-summary" aria-live="polite">
@@ -260,6 +274,11 @@
           </div>
           <label for="newVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
           <select id="newVenue" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+          <label for="newAudience" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Für:</label>
+          <select id="newAudience" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
+            <option value="ADULT">Erwachsene</option>
+            <option value="YOUTH">Jugend</option>
+          </select>
           <label style="display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 0.85rem;">
             <input id="newCounts" type="checkbox" checked> Zählt für die Wertung
           </label>

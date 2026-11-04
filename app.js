@@ -41,6 +41,8 @@ function saveDeviceToken(token) {
 }
 
 const ROLE_LABELS = { PLAYER: 'Spieler', ORGANIZER: 'Trainer', ADMIN: 'Admin' };
+const SESSION_VIEW_LABELS = { ALL: 'Alle Termine', ADULT: 'Nur Erwachsene', YOUTH: 'Nur Jugend' };
+const matchesSessionView = (audience, view) => !view || view === 'ALL' || (audience || 'ADULT') === view;
 const WEEKDAYS = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
 // Global App State
@@ -80,7 +82,8 @@ const mockDb = {
   templates: [
     { templateId: 'tpl-mo', weekdayIso: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30', active: true, audience: 'ADULT', trainerPlayerId: 'p-orga' },
     { templateId: 'tpl-di', weekdayIso: 2, venue: 'MZH', startLocal: '17:30', endLocal: '20:00', active: true, audience: 'ADULT', trainerPlayerId: '' },
-    { templateId: 'tpl-do', weekdayIso: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00', active: true, audience: 'ADULT', trainerPlayerId: '' }
+    { templateId: 'tpl-do', weekdayIso: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00', active: true, audience: 'ADULT', trainerPlayerId: '' },
+    { templateId: 'tpl-fr', weekdayIso: 5, venue: 'MZH', startLocal: '17:00', endLocal: '18:30', active: true, audience: 'YOUTH', trainerPlayerId: 'p-orga' }
   ],
   venues: ['PARK', 'MZH'],
   preferences: {
@@ -175,6 +178,12 @@ const dom = {
   newEnd: document.getElementById('newEnd'),
   newVenue: document.getElementById('newVenue'),
   createSessionBtn: document.getElementById('createSessionBtn'),
+  newAudience: document.getElementById('newAudience'),
+  settingsBtn: document.getElementById('settingsBtn'),
+  settingsDialog: document.getElementById('settingsDialog'),
+  settingsViewGroup: document.getElementById('settingsViewGroup'),
+  settingsCloseBtn: document.getElementById('settingsCloseBtn'),
+  sessionViewHint: document.getElementById('sessionViewHint'),
   templateCard: document.getElementById('templateCard'),
   templateSelect: document.getElementById('templateSelect'),
   templateWeekday: document.getElementById('templateWeekday'),
@@ -255,7 +264,8 @@ const ERROR_MESSAGES = {
   SELF_LOCKOUT: 'Deine eigene Rolle und deinen eigenen Zugang kannst du nicht ändern.',
   RECOVERY_REQUIRED: 'Der Abschluss ist unvollständig und wurde gestoppt. Punkte prüfen, bitte den Admin informieren.',
   ATTENDANCE_CONFLICT: 'Jemand anderes hat diesen Eintrag gerade geändert. Die Liste wurde neu geladen, bitte prüfen. Nichts wurde überschrieben.',
-  ATTENDANCE_NOT_OPEN: 'Die Anwesenheit kann erst nach dem Ende des Termins eingetragen werden.',
+  ATTENDANCE_NOT_OPEN: 'Die Anwesenheit kann erst ab Beginn des Termins eingetragen werden.',
+  INVALID_SESSION_VIEW: 'Diese Auswahl gibt es nicht.',
   ATTENDANCE_WINDOW_CLOSED: 'Die Frist für diesen Termin ist vorbei. Korrekturen macht ein Admin.',
   CORRECTION_REASON_REQUIRED: 'Bitte gib eine Begründung für die Korrektur an.',
   CLIENT_UPDATE_REQUIRED: 'Deine App ist nicht aktuell. Bitte lade die Seite neu. Nichts wurde gespeichert.',
@@ -334,7 +344,8 @@ function buildDemoSessions() {
   const templates = [
     { templateId: 'tpl-mo', weekday: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30' },
     { templateId: 'tpl-di', weekday: 2, venue: 'MZH', startLocal: '17:30', endLocal: '20:00' },
-    { templateId: 'tpl-do', weekday: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00' }
+    { templateId: 'tpl-do', weekday: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00' },
+    { templateId: 'tpl-fr', weekday: 5, venue: 'MZH', startLocal: '17:00', endLocal: '18:30', audience: 'YOUTH' }
   ];
   // Who usually comes: invented pattern, one line per synthetic member
   const habits = {
@@ -353,6 +364,7 @@ function buildDemoSessions() {
       const session = {
         sessionId: `ses-${dateLocal}-${t.templateId}`,
         templateId: t.templateId,
+        audience: t.audience || 'ADULT',
         dateLocal,
         venue: t.venue,
         startLocal: t.startLocal,
@@ -384,11 +396,12 @@ function buildDemoSessions() {
 
 function demoWindow(session) {
   if (session.status === 'CANCELED') return { state: 'CANCELED', deadline: '' };
+  const start = new Date(`${session.dateLocal}T${session.startLocal}:00`);
   const end = new Date(`${session.dateLocal}T${session.endLocal}:00`);
   const deadline = new Date(end.getTime() + DEMO_RULES.editWindowHours * 3600000);
   const now = new Date();
-  const windowState = now < end ? 'NOT_YET' : now > deadline ? 'LOCKED' : 'OPEN';
-  return { state: windowState, deadline: deadline.toISOString(), opensAt: end.toISOString() };
+  const windowState = now < start ? 'NOT_YET' : now > deadline ? 'LOCKED' : 'OPEN';
+  return { state: windowState, deadline: deadline.toISOString(), opensAt: start.toISOString() };
 }
 
 function demoMembers() {
@@ -547,11 +560,20 @@ async function runMockApi(action, data) {
 
   switch (action) {
     case 'whoami':
-      return { ...user };
+      return { sessionView: 'ALL', ...user };
+
+    case 'setSessionView': {
+      if (!SESSION_VIEW_LABELS[data.view]) throw apiError('INVALID_SESSION_VIEW');
+      user.sessionView = data.view;
+      return { sessionView: data.view };
+    }
 
     case 'listSessions': {
       const today = berlinToday();
-      const visible = mockDb.sessions.filter(s => s.dateLocal >= today || demoWindow(s).state === 'OPEN');
+      const view = data.allAudiences === true && user.role !== 'PLAYER' ? 'ALL' : (user.sessionView || 'ALL');
+      const visible = mockDb.sessions
+        .filter(s => s.dateLocal >= today || demoWindow(s).state === 'OPEN')
+        .filter(s => matchesSessionView(s.audience, view) || s.registrations[user.playerId] === 'CONFIRMED' || s.attendance[user.playerId] === 'PRESENT');
       return visible.map(s => {
         const myReg = s.registrations[user.playerId] || 'UNDECIDED';
         return {
@@ -595,7 +617,7 @@ async function runMockApi(action, data) {
     }
 
     case 'setPreferences': {
-      mockDb.preferences[user.playerId] = { ...data };
+      mockDb.preferences[user.playerId] = { ...mockDb.preferences[user.playerId], ...data };
       return mockDb.preferences[user.playerId];
     }
 
@@ -797,7 +819,7 @@ async function runMockApi(action, data) {
       if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
       if (!data.dateLocal || !data.venue || !data.startLocal || !data.endLocal || data.endLocal <= data.startLocal) throw apiError('INVALID_SESSION_DATA');
       const sessionId = 'ses-demo-' + mockDb.sessions.length;
-      mockDb.sessions.push({ sessionId, templateId: '', dateLocal: data.dateLocal, venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, status: 'OPEN', confirmedCount: 0, registrations: {}, attendance: {}, attendanceMeta: {}, audit: [], guests: [], countsForRanking: data.countsForRanking !== false });
+      mockDb.sessions.push({ sessionId, templateId: '', audience: data.audience || 'ADULT', dateLocal: data.dateLocal, venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, status: 'OPEN', confirmedCount: 0, registrations: {}, attendance: {}, attendanceMeta: {}, audit: [], guests: [], countsForRanking: data.countsForRanking !== false });
       mockDb.sessions.sort((a, b) => a.dateLocal.localeCompare(b.dateLocal));
       return { sessionId };
     }
@@ -1058,6 +1080,8 @@ async function initUser() {
     dom.userName.textContent = `${me.firstName} ${me.lastName}`;
     dom.roleBadge.textContent = ROLE_LABELS[me.role] || me.role;
     dom.loginBox.style.display = 'none';
+    // An older backend does not know the setting, then there is nothing to offer
+    dom.settingsBtn.hidden = !me.sessionView;
 
     // Show Orga/Admin tab if role permits
     const canSeeAdmin = me.role === 'ORGANIZER' || me.role === 'ADMIN';
@@ -1077,11 +1101,47 @@ async function loadSessions() {
       loadPlayerRank()
     ]);
     state.sessions = sessions;
+    renderSessionViewHint();
     renderSessions(sessions);
   } catch (err) {
     dom.sessionList.innerHTML = `<p style="color: var(--danger);">Fehler: ${esc(err.message)}</p>`;
   }
 }
+
+function renderSessionViewHint() {
+  const view = state.currentUser?.sessionView;
+  dom.sessionViewHint.hidden = !view || view === 'ALL';
+  if (!dom.sessionViewHint.hidden) dom.sessionViewHint.textContent = `Anzeige: ${SESSION_VIEW_LABELS[view]}. Ändern über das Zahnrad oben.`;
+}
+
+function syncSettingsDialog() {
+  dom.settingsDialog.querySelectorAll('input[name="sessionView"]').forEach(input => {
+    input.checked = input.value === (state.currentUser?.sessionView || 'ALL');
+  });
+}
+
+dom.settingsBtn.addEventListener('click', () => {
+  syncSettingsDialog();
+  dom.settingsDialog.showModal();
+});
+dom.settingsCloseBtn.addEventListener('click', () => dom.settingsDialog.close());
+dom.settingsDialog.addEventListener('change', async event => {
+  const view = event.target.value;
+  dom.settingsViewGroup.disabled = true;
+  try {
+    const saved = await callApi('setSessionView', { view });
+    state.currentUser.sessionView = saved.sessionView;
+    showToast('Einstellung gespeichert.');
+    await loadSessions();
+    if (document.getElementById('tab-preferences').classList.contains('active')) await loadPreferences();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  } finally {
+    // Always shows what the server has stored
+    syncSettingsDialog();
+    dom.settingsViewGroup.disabled = false;
+  }
+});
 
 // User Personal Rank in Current Year
 async function loadPlayerRank() {
@@ -1265,7 +1325,9 @@ async function loadPreferences() {
   try {
     const [{ templates }, prefs] = await Promise.all([callApi('listTemplates'), callApi('getPreferences')]);
     state.preferences = prefs;
-    renderPreferences(templates.filter(t => t.active), prefs);
+    // A standing date that is already on stays listed, otherwise it could not be switched off
+    const view = state.currentUser?.sessionView;
+    renderPreferences(templates.filter(t => t.active && (matchesSessionView(t.audience, view) || prefs[t.templateId] === true)), prefs);
   } catch (err) {
     showToast(`Fehler beim Laden der Präferenzen: ${err.message}`);
   }
@@ -1280,7 +1342,7 @@ function renderPreferences(templates, prefs) {
       item.className = 'pref-item';
       item.innerHTML = `
         <div>
-          <div class="pref-label">${esc(WEEKDAYS[t.weekdayIso])} (${esc(t.venue)})</div>
+          <div class="pref-label">${esc(WEEKDAYS[t.weekdayIso])} (${esc(t.venue)})${t.audience === 'YOUTH' ? ', Jugend' : ''}</div>
           <div class="pref-sub">${esc(t.startLocal)} – ${esc(t.endLocal)} Uhr</div>
         </div>
         <label class="switch" aria-label="${esc(WEEKDAYS[t.weekdayIso])} ${esc(t.startLocal)} automatisch vormerken">
@@ -1414,7 +1476,7 @@ async function loadAttendance(sessionId) {
 }
 
 function attendanceStatusText(data) {
-  if (data.windowState === 'NOT_YET') return `Nach dem Termin kannst du hier eintragen, wer tatsächlich da war, bis ${formatDeadline(data.deadline)}.`;
+  if (data.windowState === 'NOT_YET') return `Ab Trainingsbeginn kannst du hier eintragen, wer tatsächlich da ist, bis ${formatDeadline(data.deadline)}.`;
   if (data.windowState === 'CANCELED') return 'Dieser Termin ist abgesagt und zählt nicht für die Wertung.';
   if (data.windowState === 'PLANNED') return 'Dieser Termin ist noch nicht geöffnet.';
   if (data.windowState === 'LOCKED') {
@@ -1881,6 +1943,8 @@ async function loadOrgaTab() {
   dom.orgaMenuSystem.hidden = !isAdmin;
 
   await loadSessions();
+  // Trainers manage every session, whatever they chose to see on their own start page
+  state.orgaSessions = await callApi('listSessions', { allAudiences: true });
   renderOrgaMenu();
 
   // The lists for the selection fields, the session page needs them
@@ -1891,7 +1955,8 @@ async function loadOrgaTab() {
 
 function renderOrgaMenu() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
-  const next = state.sessions.find(s => (s.status === 'OPEN' || s.status === 'CLOSING') && s.dateLocal >= today);
+  const sessions = state.orgaSessions || state.sessions;
+  const next = sessions.find(s => (s.status === 'OPEN' || s.status === 'CLOSING') && s.dateLocal >= today);
   dom.orgaNextBtn.hidden = !next;
   if (next) {
     dom.orgaNextBtn.replaceChildren(next.dateLocal === today ? '🏸 Heute' : '🏸 Nächster Termin');
@@ -1902,10 +1967,10 @@ function renderOrgaMenu() {
   }
 
   dom.orgaSessionList.replaceChildren();
-  if (state.sessions.length === 0) {
+  if (sessions.length === 0) {
     dom.orgaSessionList.textContent = 'Keine Termine vorhanden.';
   }
-  state.sessions.forEach(s => {
+  sessions.forEach(s => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'orga-menu-item';
@@ -2280,8 +2345,10 @@ dom.createSessionBtn.addEventListener('click', async () => {
       venue: dom.newVenue.value.trim(),
       startLocal: dom.newStart.value,
       endLocal: dom.newEnd.value,
-      countsForRanking: dom.newCounts.checked
+      countsForRanking: dom.newCounts.checked,
+      audience: dom.newAudience.value
     });
+    dom.newAudience.value = 'ADULT';
     dom.newDate.value = '';
     dom.newCounts.checked = true;
     dom.newStart.value = '';
