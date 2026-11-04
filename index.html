@@ -69,6 +69,16 @@
     </fieldset>
     <p id="settingsRankingNote" class="settings-note" hidden></p>
     <p class="settings-note">Termine, für die du zugesagt hast oder bei denen du als anwesend eingetragen bist, bleiben immer sichtbar.</p>
+    <fieldset id="profileBox" class="settings-group" hidden>
+      <legend>Meine Daten</legend>
+      <p class="settings-note">Eine Änderung gilt erst, wenn ein Admin sie freigegeben hat.</p>
+      <div class="profile-field"><label for="profileFirstName">Vorname</label><input id="profileFirstName" class="demo-selector" type="text" maxlength="50" autocomplete="given-name"></div>
+      <div class="profile-field"><label for="profileLastName">Nachname</label><input id="profileLastName" class="demo-selector" type="text" maxlength="50" autocomplete="family-name"></div>
+      <div class="profile-field"><label for="profileBirthDate">Geburtsdatum</label><input id="profileBirthDate" class="demo-selector" type="date" min="1900-01-01"></div>
+      <p id="profileStatus" class="settings-note" role="status"></p>
+      <button id="profileSaveBtn" class="btn btn-primary" type="button">Änderung beantragen</button>
+      <button id="profileWithdrawBtn" class="btn btn-decline" type="button" hidden>Anfrage zurückziehen</button>
+    </fieldset>
     <fieldset id="notificationBox" class="settings-group" hidden>
       <legend>Benachrichtigungen</legend>
       <p id="notificationStatus" class="settings-note" role="status"></p>
@@ -266,6 +276,7 @@
         <button class="orga-menu-item" type="button" data-orga-view="templates">🔁 Standardtermine<span>Wiederkehrende Zeiten</span></button>
         <button class="orga-menu-item" type="button" data-orga-view="ranking">🏅 Ranglisten<span>Wer in welcher Rangliste steht</span></button>
         <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
+        <button id="orgaMenuProfiles" class="orga-menu-item" type="button" data-orga-view="profiles" hidden>📝 Mitgliederdaten<span id="orgaMenuProfilesCount">Name und Geburtsdatum</span></button>
         <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur & System<span>Punkte korrigieren, Prüfung</span></button>
       </div>
 
@@ -355,9 +366,30 @@
         <div id="rankingMemberList" aria-live="polite"></div>
       </div>
 
+      <div id="orga-profiles" class="orga-view" hidden>
+        <button class="orga-back" type="button">← Zurück</button>
+        <h2 class="section-title">Mitgliederdaten</h2>
+        <div id="profileAdminArea" hidden>
+          <h3 class="profile-subtitle">Offene Anfragen</h3>
+          <div id="profileRequestList" aria-live="polite"></div>
+          <div id="profileSyncProblems" aria-live="polite"></div>
+          <details class="orga-details">
+            <summary>Ruhende Mitglieder</summary>
+            <p class="settings-note">Ruhende können sich nicht anmelden und stehen in keiner Liste. Ihre Punkte im Archiv bleiben. Der Status in der Teilnehmerverwaltung ändert sich mit.</p>
+            <div id="profileInactiveList" aria-live="polite"></div>
+          </details>
+        </div>
+        <h3 class="profile-subtitle">Mitglied ändern</h3>
+        <p id="profileEditNote" class="settings-note"></p>
+        <input id="profileMemberSearch" type="search" class="demo-selector" placeholder="Name suchen" aria-label="Mitglied suchen" style="width: 100%; padding: 10px; font-size: 0.9rem; margin-bottom: 10px;">
+        <div id="profileMemberList" aria-live="polite"></div>
+      </div>
+
       <div id="orga-access" class="orga-view" hidden>
         <button class="orga-back" type="button">← Zurück</button>
         <h2 class="section-title">Zugänge</h2>
+        <p class="settings-note">Die Rechte kommen aus der Spalte Rolle der Teilnehmerverwaltung: Admin, Trainer, sonst Spieler. Der Abgleich läuft stündlich. Steht dort eine Rolle, gilt sie auch für neue Codes, die Auswahl unten zählt nur für Personen ohne Eintrag.</p>
+        <button id="syncRolesBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 12px;">Rollen jetzt abgleichen</button>
         <div class="pref-card" id="linkCard">
           <label for="linkPlayerSelect" style="font-size: 0.85rem; font-weight: 600;">Spieler:</label>
           <select id="linkPlayerSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>

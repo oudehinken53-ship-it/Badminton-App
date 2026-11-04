@@ -181,6 +181,22 @@ header.app-header {
 .settings-group { border: none; margin: 0; padding: 0; }
 .settings-group legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
 .settings-group label { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.profile-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.settings-group .profile-field label { min-height: 0; font-size: 0.85rem; font-weight: 600; }
+.profile-field input { width: 100%; box-sizing: border-box; padding: 10px; font-size: 0.9rem; }
+#profileWithdrawBtn { margin-top: 8px; }
+.profile-subtitle { font-size: 1rem; margin: 16px 0 8px; }
+.profile-member { padding: 10px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
+.profile-member summary { font-weight: 600; cursor: pointer; min-height: 28px; }
+.profile-member-form { margin-top: 10px; }
+.profile-member-form .btn-decline { margin-top: 8px; }
+.profile-inactive { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
+.profile-request { padding: 12px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
+.profile-request-name { font-weight: 600; margin-bottom: 4px; }
+.profile-request-change { font-size: 0.9rem; margin: 2px 0; overflow-wrap: anywhere; }
+.profile-request input { width: 100%; box-sizing: border-box; padding: 10px; font-size: 0.9rem; margin-top: 8px; }
+.profile-request-actions { display: flex; gap: 8px; margin-top: 8px; }
+.profile-request-actions .btn { flex: 1; }
 .settings-note { font-size: 0.85rem; color: var(--gray-600, #555); margin: 10px 0 14px; }
 .settings-dialog .btn { width: 100%; }
 .ranking-member { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--gray-200, #ddd); }

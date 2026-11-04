@@ -89,6 +89,7 @@ const mockDb = {
     david: { playerId: 'p-david', firstName: 'David', lastName: 'Dorn', role: 'PLAYER', sub: '1006', birthYear: '2012' },
     emil: { playerId: 'p-emil', firstName: 'Emil', lastName: 'Ernst', role: 'PLAYER', sub: '1007' }
   },
+  profileRequests: [],
   sessions: [],
   templates: [
     { templateId: 'tpl-mo', weekdayIso: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30', active: true, audience: 'ADULT', trainerPlayerId: 'p-orga' },
@@ -169,6 +170,7 @@ const dom = {
   linkCard: document.getElementById('linkCard'),
   linkPlayerSelect: document.getElementById('linkPlayerSelect'),
   inviteResult: document.getElementById('inviteResult'),
+  syncRolesBtn: document.getElementById('syncRolesBtn'),
   inviteCodeOut: document.getElementById('inviteCodeOut'),
   inviteExpiry: document.getElementById('inviteExpiry'),
   linkRole: document.getElementById('linkRole'),
@@ -192,6 +194,22 @@ const dom = {
   newAudience: document.getElementById('newAudience'),
   settingsBtn: document.getElementById('settingsBtn'),
   settingsDialog: document.getElementById('settingsDialog'),
+  profileBox: document.getElementById('profileBox'),
+  profileFirstName: document.getElementById('profileFirstName'),
+  profileLastName: document.getElementById('profileLastName'),
+  profileBirthDate: document.getElementById('profileBirthDate'),
+  profileStatus: document.getElementById('profileStatus'),
+  profileSaveBtn: document.getElementById('profileSaveBtn'),
+  profileWithdrawBtn: document.getElementById('profileWithdrawBtn'),
+  orgaMenuProfiles: document.getElementById('orgaMenuProfiles'),
+  orgaMenuProfilesCount: document.getElementById('orgaMenuProfilesCount'),
+  profileRequestList: document.getElementById('profileRequestList'),
+  profileAdminArea: document.getElementById('profileAdminArea'),
+  profileSyncProblems: document.getElementById('profileSyncProblems'),
+  profileInactiveList: document.getElementById('profileInactiveList'),
+  profileEditNote: document.getElementById('profileEditNote'),
+  profileMemberSearch: document.getElementById('profileMemberSearch'),
+  profileMemberList: document.getElementById('profileMemberList'),
   settingsViewGroup: document.getElementById('settingsViewGroup'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
   sessionViewHint: document.getElementById('sessionViewHint'),
@@ -289,6 +307,10 @@ const ERROR_MESSAGES = {
   INVALID_PUSH_SUBSCRIPTION: 'Dieses Gerät konnte nicht angemeldet werden.',
   INVALID_NOTIFICATION_SETTINGS: 'Diese Auswahl gibt es nicht.',
   INVALID_RANKING_DATA: 'Bitte prüfe den Jahrgang und die Rangliste.',
+  INVALID_PROFILE_DATA: 'Bitte prüfe Name und Geburtsdatum. Namen beginnen mit einem Buchstaben.',
+  PROFILE_NO_CHANGE: 'Du hast nichts geändert.',
+  PROFILE_REQUEST_CLOSED: 'Diese Anfrage ist schon erledigt.',
+  PROFILE_REQUEST_NOT_FOUND: 'Diese Anfrage gibt es nicht mehr.',
   ATTENDANCE_WINDOW_CLOSED: 'Die Frist für diesen Termin ist vorbei. Korrekturen macht ein Admin.',
   CORRECTION_REASON_REQUIRED: 'Bitte gib eine Begründung für die Korrektur an.',
   CLIENT_UPDATE_REQUIRED: 'Deine App ist nicht aktuell. Bitte lade die Seite neu. Nichts wurde gespeichert.',
@@ -363,7 +385,7 @@ async function callApi(action, data = {}) {
 const STORED_READS = new Set(['whoami', 'listSessions', 'listTemplates', 'getPreferences', 'getProgress']);
 const MEMORY_READS = new Set(['getRankings', 'getLeaderboard', 'getSessionDetail']);
 const READ_ACTIONS = new Set([...STORED_READS, ...MEMORY_READS, 'getAttendance', 'getSessionRoster', 'getSeasonArchive',
-  'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration']);
+  'getProfile', 'listProfileRequests', 'listInactiveMembers', 'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration']);
 const READ_CACHE_KEY = 'bms_read_cache';
 const READ_CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const readCache = new Map();
@@ -638,8 +660,36 @@ function demoSetAttendance(user, data) {
   return { sessionId: session.sessionId, playerId: data.playerId, state: data.state, version, updatedAt: at };
 }
 
+function demoPlayer(playerId) {
+  return Object.values(mockDb.users).find(u => u.playerId === playerId);
+}
+
+function demoProfileValues(player, requested) {
+  const birthYear = requested.birthDate ? requested.birthDate.substring(0, 4) : (player.birthDate ? '' : player.birthYear);
+  return { ...requested, birthYear };
+}
+
+function demoAskProfileChange(target, data, requestedById) {
+  const values = { firstName: String(data.firstName || '').trim(), lastName: String(data.lastName || '').trim(), birthDate: String(data.birthDate || '').trim() };
+  if (!/^\p{L}/u.test(values.firstName) || !/^\p{L}/u.test(values.lastName) || (values.birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(values.birthDate))) throw apiError('INVALID_PROFILE_DATA');
+  if (values.firstName === target.firstName && values.lastName === target.lastName && values.birthDate === (target.birthDate || '')) throw apiError('PROFILE_NO_CHANGE');
+  mockDb.profileRequests = mockDb.profileRequests.filter(r => r.playerId !== target.playerId);
+  mockDb.profileRequests.push({ requestId: `prq-${Date.now()}`, playerId: target.playerId, requestedById, createdAt: new Date().toISOString(), requested: values });
+}
+
+function demoProfile(u) {
+  const pending = mockDb.profileRequests.find(r => r.playerId === u.playerId);
+  return {
+    firstName: u.firstName,
+    lastName: u.lastName,
+    birthDate: u.birthDate || '',
+    pending: pending ? { ...pending.requested, createdAt: pending.createdAt } : null,
+    lastDecision: u.demoLastDecision || null
+  };
+}
+
 function demoRankingMember(u, seasonYear) {
-  return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, birthYear: u.birthYear || '', rankingGroup: u.rankingGroup || 'AUTO', effectiveGroup: scoringRankingGroup_(u, seasonYear) };
+  return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, birthYear: u.birthYear || '', birthDate: u.birthDate || '', rankingGroup: u.rankingGroup || 'AUTO', effectiveGroup: scoringRankingGroup_(u, seasonYear) };
 }
 
 function demoRankings(user, data) {
@@ -690,7 +740,7 @@ async function runMockApi(action, data) {
     case 'listRankingMembers': {
       if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
       const seasonYear = berlinToday().substring(0, 4);
-      return { seasonYear, players: Object.values(mockDb.users).map(u => demoRankingMember(u, seasonYear)).sort((a, b) => a.lastName.localeCompare(b.lastName)) };
+      return { seasonYear, players: Object.values(mockDb.users).filter(u => !u.demoInactive).map(u => demoRankingMember(u, seasonYear)).sort((a, b) => a.lastName.localeCompare(b.lastName)) };
     }
 
     case 'setPlayerRanking': {
@@ -698,9 +748,12 @@ async function runMockApi(action, data) {
       const target = Object.values(mockDb.users).find(u => u.playerId === data.playerId);
       if (!target) throw apiError('PLAYER_NOT_FOUND');
       if (data.rankingGroup !== 'AUTO' && !RANKING_GROUP_LABELS[data.rankingGroup]) throw apiError('INVALID_RANKING_DATA');
-      const year = String(data.birthYear ?? '').trim();
-      if (year !== '' && !/^\d{4}$/.test(year)) throw apiError('INVALID_RANKING_DATA');
-      target.birthYear = year;
+      if (data.birthYear !== undefined) {
+        const year = String(data.birthYear).trim();
+        if (year !== '' && !/^\d{4}$/.test(year)) throw apiError('INVALID_RANKING_DATA');
+        if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+        target.birthYear = year;
+      }
       target.rankingGroup = data.rankingGroup === 'AUTO' ? '' : data.rankingGroup;
       return demoRankingMember(target, berlinToday().substring(0, 4));
     }
@@ -719,6 +772,77 @@ async function runMockApi(action, data) {
     case 'removePushSubscription':
       user.demoDevice = false;
       return { active: false };
+
+    case 'getProfile':
+      return demoProfile(user);
+
+    case 'requestProfileChange':
+      demoAskProfileChange(user, data, user.playerId);
+      return demoProfile(user);
+
+    case 'withdrawProfileRequest':
+      if (!mockDb.profileRequests.some(r => r.playerId === user.playerId)) throw apiError('PROFILE_REQUEST_CLOSED');
+      mockDb.profileRequests = mockDb.profileRequests.filter(r => r.playerId !== user.playerId);
+      return demoProfile(user);
+
+    case 'listProfileRequests': {
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      const seasonYear = berlinToday().substring(0, 4);
+      const nameOf = id => { const u = demoPlayer(id); return `${u.firstName} ${u.lastName}`; };
+      return {
+        requests: mockDb.profileRequests.map(r => {
+          const target = demoPlayer(r.playerId);
+          return {
+            ...r,
+            requestedBy: r.requestedById === r.playerId ? '' : nameOf(r.requestedById),
+            current: { firstName: target.firstName, lastName: target.lastName, birthDate: target.birthDate || '' },
+            listNow: scoringRankingGroup_(target, seasonYear),
+            listAfter: scoringRankingGroup_({ ...target, ...demoProfileValues(target, r.requested) }, seasonYear)
+          };
+        }),
+        syncProblems: []
+      };
+    }
+
+    case 'decideProfileRequest': {
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      const request = mockDb.profileRequests.find(r => r.requestId === data.requestId);
+      if (!request) throw apiError('PROFILE_REQUEST_CLOSED');
+      const target = demoPlayer(request.playerId);
+      if (data.decision === 'APPROVE') Object.assign(target, demoProfileValues(target, request.requested));
+      target.demoLastDecision = { status: data.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED', decidedAt: new Date().toISOString(), note: data.note || '' };
+      mockDb.profileRequests = mockDb.profileRequests.filter(r => r !== request);
+      return { requestId: request.requestId, status: target.demoLastDecision.status, syncStatus: 'OFF' };
+    }
+
+    case 'listInactiveMembers':
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      return { players: Object.values(mockDb.users).filter(u => u.demoInactive).map(u => ({ playerId: u.playerId, firstName: u.firstName, lastName: u.lastName })) };
+
+    case 'setMemberActive': {
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      const target = demoPlayer(data.playerId);
+      if (!target) throw apiError('PLAYER_NOT_FOUND');
+      if (target.playerId === user.playerId) throw apiError('SELF_LOCKOUT');
+      target.demoInactive = !data.active;
+      return { playerId: target.playerId, active: data.active, syncStatus: 'OFF' };
+    }
+
+    case 'syncRoles':
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      return { status: 'OFF', changed: 0, numbered: 0 };
+
+    case 'editMemberProfile': {
+      if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
+      const target = demoPlayer(data.playerId);
+      if (!target) throw apiError('PLAYER_NOT_FOUND');
+      demoAskProfileChange(target, data, user.playerId);
+      if (user.role !== 'ADMIN') return { applied: false };
+      const request = mockDb.profileRequests.find(r => r.playerId === target.playerId);
+      Object.assign(target, demoProfileValues(target, request.requested));
+      mockDb.profileRequests = mockDb.profileRequests.filter(r => r !== request);
+      return { applied: true, syncStatus: 'OFF', member: demoRankingMember(target, berlinToday().substring(0, 4)) };
+    }
 
     case 'setSessionView': {
       if (!SESSION_VIEW_LABELS[data.view]) throw apiError('INVALID_SESSION_VIEW');
@@ -1302,8 +1426,76 @@ function syncSettingsDialog() {
 dom.settingsBtn.addEventListener('click', () => {
   syncSettingsDialog();
   dom.settingsDialog.showModal();
+  loadProfileBox();
   loadNotificationBox();
 });
+
+function germanDate(iso) {
+  const [year, month, day] = iso.split('-');
+  return `${day}.${month}.${year}`;
+}
+
+function renderProfileBox(profile) {
+  const shown = profile.pending || profile;
+  dom.profileFirstName.value = shown.firstName;
+  dom.profileLastName.value = shown.lastName;
+  dom.profileBirthDate.value = shown.birthDate;
+  dom.profileBirthDate.max = berlinToday();
+  dom.profileWithdrawBtn.hidden = !profile.pending;
+  dom.profileSaveBtn.textContent = profile.pending ? 'Anfrage ändern' : 'Änderung beantragen';
+  const decision = profile.lastDecision;
+  if (profile.pending) {
+    dom.profileStatus.textContent = `Deine Anfrage vom ${formatDate(profile.pending.createdAt.substring(0, 10))} wartet auf die Freigabe. Bis dahin gelten deine bisherigen Daten: ${profile.firstName} ${profile.lastName}${profile.birthDate ? `, geboren am ${germanDate(profile.birthDate)}` : ''}.`;
+  } else if (decision) {
+    const reason = decision.note ? ` Begründung: ${decision.note}` : '';
+    dom.profileStatus.textContent = `Deine letzte Anfrage wurde ${decision.status === 'APPROVED' ? 'freigegeben' : 'abgelehnt'}.${reason}`;
+  } else {
+    dom.profileStatus.textContent = '';
+  }
+  // An approved name is the one to show from now on
+  if (state.currentUser && (state.currentUser.firstName !== profile.firstName || state.currentUser.lastName !== profile.lastName)) {
+    state.currentUser.firstName = profile.firstName;
+    state.currentUser.lastName = profile.lastName;
+    dom.userName.textContent = `${profile.firstName} ${profile.lastName}`;
+  }
+}
+
+function setProfileBusy(busy) {
+  [dom.profileFirstName, dom.profileLastName, dom.profileBirthDate, dom.profileSaveBtn, dom.profileWithdrawBtn].forEach(el => { el.disabled = busy; });
+}
+
+async function loadProfileBox() {
+  dom.profileBox.hidden = false;
+  dom.profileStatus.textContent = 'Lade …';
+  setProfileBusy(true);
+  try {
+    renderProfileBox(await callApi('getProfile'));
+    setProfileBusy(false);
+  } catch (err) {
+    // The app can be newer than the backend, then there is nothing to offer yet
+    if (err.code === 'INVALID_ACTION' || err.code === 'UNKNOWN_ACTION') dom.profileBox.hidden = true;
+    else dom.profileStatus.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+async function submitProfile(action, data, message) {
+  setProfileBusy(true);
+  try {
+    // Always shows what the server has stored
+    renderProfileBox(await callApi(action, data));
+    showToast(message);
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  }
+  setProfileBusy(false);
+}
+
+dom.profileSaveBtn.addEventListener('click', () => submitProfile('requestProfileChange', {
+  firstName: dom.profileFirstName.value,
+  lastName: dom.profileLastName.value,
+  birthDate: dom.profileBirthDate.value
+}, 'Anfrage an die Admins geschickt.'));
+dom.profileWithdrawBtn.addEventListener('click', () => submitProfile('withdrawProfileRequest', {}, 'Anfrage zurückgezogen.'));
 
 // In the demo there is no real device, the switch only shows how the page behaves
 function pushIsAvailable() {
@@ -1418,7 +1610,7 @@ dom.notificationToggleBtn.addEventListener('click', async () => {
   await loadNotificationBox();
 });
 dom.settingsCloseBtn.addEventListener('click', () => dom.settingsDialog.close());
-dom.settingsDialog.addEventListener('change', async event => {
+dom.settingsViewGroup.addEventListener('change', async event => {
   const view = event.target.value;
   dom.settingsViewGroup.disabled = true;
   try {
@@ -2300,8 +2492,284 @@ document.querySelectorAll('[data-orga-view]').forEach(btn => {
     navigate(() => showOrgaView(btn.dataset.orgaView));
     if (btn.dataset.orgaView === 'system') refreshCorrectInfo();
     if (btn.dataset.orgaView === 'ranking') loadRankingMembers();
+    if (btn.dataset.orgaView === 'profiles') loadProfilesView();
   });
 });
+
+function showProfileRequestCount(count) {
+  dom.orgaMenuProfilesCount.textContent = count > 0 ? `${count} ${count === 1 ? 'Anfrage wartet' : 'Anfragen warten'}` : 'Name und Geburtsdatum';
+}
+
+async function refreshProfileRequestCount() {
+  try {
+    const { requests } = await callApi('listProfileRequests');
+    showProfileRequestCount(requests.length);
+  } catch (err) {
+    // The app can be newer than the backend, then there is nothing to offer yet
+    if (err.code === 'INVALID_ACTION' || err.code === 'UNKNOWN_ACTION') dom.orgaMenuProfiles.hidden = true;
+  }
+}
+
+async function loadProfileRequests() {
+  dom.profileRequestList.textContent = 'Lade …';
+  try {
+    const { requests, syncProblems } = await callApi('listProfileRequests');
+    showProfileRequestCount(requests.length);
+    renderProfileRequests(requests);
+    renderSyncProblems(syncProblems);
+  } catch (err) {
+    dom.profileRequestList.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+async function loadProfilesView() {
+  const isAdmin = state.currentUser?.role === 'ADMIN';
+  dom.profileAdminArea.hidden = !isAdmin;
+  dom.profileEditNote.textContent = isAdmin
+    ? 'Deine Änderung gilt sofort.'
+    : 'Deine Änderung geht als Anfrage an die Admins und gilt erst nach der Freigabe.';
+  dom.profileMemberList.textContent = 'Lade …';
+  if (isAdmin) {
+    loadProfileRequests();
+    loadInactiveMembers();
+  }
+  try {
+    const { players } = await callApi('listRankingMembers');
+    state.profileMembers = players;
+    renderProfileMembers();
+  } catch (err) {
+    dom.profileMemberList.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+async function setMemberActive(member, active) {
+  try {
+    const { syncStatus } = await callApi('setMemberActive', { playerId: member.playerId, active });
+    const notice = SYNC_NOTICE[syncStatus] ? ` ${SYNC_NOTICE[syncStatus]} Bitte den Status dort selbst ändern.` : '';
+    showToast(`${member.firstName} ${member.lastName}: ${active ? 'wieder aktiv' : 'ruhend'}.${notice}`, notice ? 6000 : undefined);
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  }
+  // Always shows what the server has stored
+  await loadProfilesView();
+}
+
+async function loadInactiveMembers() {
+  dom.profileInactiveList.textContent = 'Lade …';
+  try {
+    const { players } = await callApi('listInactiveMembers');
+    dom.profileInactiveList.replaceChildren();
+    if (players.length === 0) dom.profileInactiveList.textContent = 'Niemand ruht gerade.';
+    players.forEach(member => {
+      const row = document.createElement('div');
+      row.className = 'profile-inactive';
+      const name = document.createElement('span');
+      name.textContent = `${member.firstName} ${member.lastName}`;
+      const on = document.createElement('button');
+      on.type = 'button';
+      on.className = 'btn btn-primary';
+      on.textContent = 'Wieder aktivieren';
+      on.addEventListener('click', () => {
+        on.disabled = true;
+        setMemberActive(member, true);
+      });
+      row.append(name, on);
+      dom.profileInactiveList.append(row);
+    });
+  } catch (err) {
+    dom.profileInactiveList.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+const SYNC_NOTICE = {
+  FAILED: 'In die Teilnehmerverwaltung konnte das nicht übertragen werden.',
+  NOT_FOUND: 'In der Teilnehmerverwaltung gibt es keine eindeutige Zeile mit dieser Spieler-ID.'
+};
+
+function renderSyncProblems(problems) {
+  dom.profileSyncProblems.replaceChildren();
+  problems.forEach(problem => {
+    const row = document.createElement('div');
+    row.className = 'profile-request';
+    const text = document.createElement('div');
+    text.className = 'profile-request-change';
+    text.textContent = `${problem.name}: ${SYNC_NOTICE[problem.syncStatus]} In der App ist die Änderung gespeichert.`;
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'btn btn-primary';
+    retry.textContent = 'Erneut übertragen';
+    retry.addEventListener('click', async () => {
+      retry.disabled = true;
+      try {
+        const { syncStatus } = await callApi('retryParticipantSync', { requestId: problem.requestId });
+        showToast(SYNC_NOTICE[syncStatus] || 'Übertragen.', SYNC_NOTICE[syncStatus] ? 6000 : undefined);
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, 6000);
+      }
+      await loadProfileRequests();
+    });
+    row.append(text, retry);
+    dom.profileSyncProblems.append(row);
+  });
+}
+
+function renderProfileMembers() {
+  const needle = dom.profileMemberSearch.value.trim().toLowerCase();
+  const isAdmin = state.currentUser?.role === 'ADMIN';
+  dom.profileMemberList.replaceChildren();
+  (state.profileMembers || [])
+    .filter(m => `${m.firstName} ${m.lastName}`.toLowerCase().includes(needle))
+    .forEach(member => {
+      const row = document.createElement('details');
+      row.className = 'profile-member';
+      const title = document.createElement('summary');
+      title.textContent = `${member.firstName} ${member.lastName}`;
+      row.append(title);
+      // Built when opened: the list can hold many people and most rows are never opened
+      row.addEventListener('toggle', () => {
+        if (row.open && !row.querySelector('.profile-member-form')) row.append(profileMemberForm(member, isAdmin));
+      }, { once: false });
+      dom.profileMemberList.append(row);
+    });
+}
+
+function profileMemberForm(member, isAdmin) {
+  const form = document.createElement('div');
+  form.className = 'profile-member-form';
+  const field = (label, type, value, maxLength) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'profile-field';
+    const caption = document.createElement('label');
+    const input = document.createElement('input');
+    input.id = `${label}-${member.playerId}`;
+    caption.htmlFor = input.id;
+    caption.textContent = label;
+    input.type = type;
+    input.className = 'demo-selector';
+    input.value = value;
+    if (maxLength) input.maxLength = maxLength;
+    wrap.append(caption, input);
+    form.append(wrap);
+    return input;
+  };
+  const first = field('Vorname', 'text', member.firstName, 50);
+  const last = field('Nachname', 'text', member.lastName, 50);
+  const birth = field('Geburtsdatum', 'date', member.birthDate, 0);
+  birth.min = '1900-01-01';
+  birth.max = berlinToday();
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'btn btn-primary';
+  save.textContent = isAdmin ? 'Speichern' : 'Anfrage an Admins senden';
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    try {
+      const result = await callApi('editMemberProfile', { playerId: member.playerId, firstName: first.value, lastName: last.value, birthDate: birth.value });
+      if (result.applied) {
+        Object.assign(member, result.member);
+        showToast(SYNC_NOTICE[result.syncStatus] ? `Gespeichert. ${SYNC_NOTICE[result.syncStatus]}` : 'Gespeichert.', SYNC_NOTICE[result.syncStatus] ? 6000 : undefined);
+        // Always shows what the server has stored
+        renderProfileMembers();
+        loadProfileRequests();
+      } else {
+        showToast('Anfrage an die Admins geschickt.');
+      }
+    } catch (err) {
+      showToast(`Fehler: ${err.message}`, 6000);
+    }
+    save.disabled = false;
+  });
+  form.append(save);
+  if (isAdmin && member.playerId !== state.currentUser?.playerId) {
+    const rest = document.createElement('button');
+    rest.type = 'button';
+    rest.className = 'btn btn-decline';
+    rest.textContent = 'Auf ruhend setzen';
+    rest.addEventListener('click', () => {
+      if (!confirm(`${member.firstName} ${member.lastName} auf ruhend setzen? Die Person kann sich dann nicht mehr anmelden, ihre Punkte bleiben.`)) return;
+      rest.disabled = true;
+      setMemberActive(member, false);
+    });
+    form.append(rest);
+  }
+  return form;
+}
+
+dom.profileMemberSearch.addEventListener('input', renderProfileMembers);
+
+function profileChangeLines(request) {
+  const { current, requested } = request;
+  const lines = [];
+  if (current.firstName !== requested.firstName || current.lastName !== requested.lastName) {
+    lines.push(`Name: ${current.firstName} ${current.lastName} → ${requested.firstName} ${requested.lastName}`);
+  }
+  if (current.birthDate !== requested.birthDate) {
+    const shown = value => (value ? germanDate(value) : 'leer');
+    lines.push(`Geburtsdatum: ${shown(current.birthDate)} → ${shown(requested.birthDate)}`);
+  }
+  if (request.requestedBy) lines.push(`Beantragt von ${request.requestedBy}`);
+  if (request.listNow !== request.listAfter) {
+    lines.push(`Wechselt damit in die Rangliste ${RANKING_GROUP_LABELS[request.listAfter]}, die ganze laufende Saison zieht mit.`);
+  }
+  return lines;
+}
+
+function renderProfileRequests(requests) {
+  dom.profileRequestList.replaceChildren();
+  if (requests.length === 0) {
+    dom.profileRequestList.textContent = 'Keine offenen Anfragen.';
+    return;
+  }
+  requests.forEach(request => {
+    const row = document.createElement('div');
+    row.className = 'profile-request';
+    const name = document.createElement('div');
+    name.className = 'profile-request-name';
+    name.textContent = `${request.current.firstName} ${request.current.lastName}, ${formatDate(request.createdAt.substring(0, 10))}`;
+    row.append(name);
+    profileChangeLines(request).forEach(text => {
+      const line = document.createElement('div');
+      line.className = 'profile-request-change';
+      line.textContent = text;
+      row.append(line);
+    });
+    const note = document.createElement('input');
+    note.type = 'text';
+    note.className = 'demo-selector';
+    note.maxLength = 200;
+    note.placeholder = 'Begründung (optional)';
+    note.setAttribute('aria-label', `Begründung zur Anfrage von ${request.current.firstName} ${request.current.lastName}`);
+    const actions = document.createElement('div');
+    actions.className = 'profile-request-actions';
+    const approve = document.createElement('button');
+    approve.type = 'button';
+    approve.className = 'btn btn-primary';
+    approve.textContent = 'Freigeben';
+    const reject = document.createElement('button');
+    reject.type = 'button';
+    reject.className = 'btn btn-decline';
+    reject.textContent = 'Ablehnen';
+    const decide = async decision => {
+      approve.disabled = true;
+      reject.disabled = true;
+      try {
+        const { syncStatus } = await callApi('decideProfileRequest', { requestId: request.requestId, decision, note: note.value });
+        if (decision !== 'APPROVE') showToast('Anfrage abgelehnt.');
+        else if (SYNC_NOTICE[syncStatus]) showToast(`Freigegeben. ${SYNC_NOTICE[syncStatus]}`, 6000);
+        else showToast('Änderung freigegeben.');
+      } catch (err) {
+        showToast(`Fehler: ${err.message}`, 6000);
+      }
+      // Always shows what the server has stored
+      await loadProfilesView();
+    };
+    approve.addEventListener('click', () => decide('APPROVE'));
+    reject.addEventListener('click', () => decide('REJECT'));
+    actions.append(approve, reject);
+    row.append(note, actions);
+    dom.profileRequestList.append(row);
+  });
+}
 
 async function loadRankingMembers() {
   dom.rankingMemberList.textContent = 'Lade …';
@@ -2339,6 +2807,9 @@ function renderRankingMembers() {
       year.placeholder = 'Jahrgang';
       year.setAttribute('aria-label', `Jahrgang von ${member.firstName} ${member.lastName}`);
       year.value = member.birthYear;
+      // A trainer asks through the member data, and a known birth date already gives the year
+      const yearEditable = state.currentUser?.role === 'ADMIN' && !member.birthDate;
+      year.disabled = !yearEditable;
       const select = document.createElement('select');
       select.className = 'demo-selector';
       select.setAttribute('aria-label', `Rangliste von ${member.firstName} ${member.lastName}`);
@@ -2348,7 +2819,7 @@ function renderRankingMembers() {
         year.disabled = true;
         select.disabled = true;
         try {
-          const saved = await callApi('setPlayerRanking', { playerId: member.playerId, rankingGroup: select.value, birthYear: year.value.trim() });
+          const saved = await callApi('setPlayerRanking', { playerId: member.playerId, rankingGroup: select.value, ...(yearEditable ? { birthYear: year.value.trim() } : {}) });
           Object.assign(member, saved);
           showToast(`${member.firstName} ${member.lastName}: Rangliste ${RANKING_GROUP_LABELS[saved.effectiveGroup]}`);
           state.rankingGroup = null;
@@ -2375,6 +2846,8 @@ async function loadOrgaTab() {
   const isAdmin = state.currentUser?.role === 'ADMIN';
   dom.orgaMenuAccess.hidden = !isAdmin;
   dom.orgaMenuSystem.hidden = !isAdmin;
+  dom.orgaMenuProfiles.hidden = false;
+  if (isAdmin) refreshProfileRequestCount();
 
   // Says that something is coming, the first load can take some seconds
   if (!state.orgaSessions) {
@@ -2728,6 +3201,24 @@ dom.cancelSessionBtn.addEventListener('click', async () => {
   }
 });
 
+const ROLE_SYNC_NOTICE = {
+  OFF: 'Die Teilnehmerverwaltung ist noch nicht verbunden, nichts wurde geändert.',
+  FAILED: 'Die Teilnehmerverwaltung konnte nicht gelesen werden, nichts wurde geändert.',
+  NO_ADMIN: 'Danach gäbe es keinen Admin mehr, deshalb wurde nichts geändert. Bitte prüfe die Spalte Rolle.'
+};
+
+dom.syncRolesBtn.addEventListener('click', async () => {
+  dom.syncRolesBtn.disabled = true;
+  try {
+    const { status, changed } = await callApi('syncRoles', {});
+    showToast(ROLE_SYNC_NOTICE[status] || `Abgeglichen: ${changed} ${changed === 1 ? 'Person' : 'Personen'} geändert.`, ROLE_SYNC_NOTICE[status] ? 6000 : undefined);
+    await loadPlayerLinks();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  }
+  dom.syncRolesBtn.disabled = false;
+});
+
 dom.linkBtn.addEventListener('click', async () => {
   dom.linkBtn.disabled = true;
   dom.inviteResult.style.display = 'none';
@@ -2737,6 +3228,7 @@ dom.linkBtn.addEventListener('click', async () => {
       role: dom.linkRole.value
     });
     dom.inviteCodeOut.textContent = invite.code;
+    if (invite.role !== dom.linkRole.value) showToast(`Rolle laut Teilnehmerverwaltung: ${ROLE_LABELS[invite.role]}.`, 6000);
     dom.inviteExpiry.textContent = `Gültig bis ${new Date(invite.expiresAt).toLocaleDateString('de-DE')}, nur einmal verwendbar. Fügt ein Gerät hinzu, ein früherer offener Code verfällt damit.`;
     dom.inviteResult.style.display = 'block';
     await loadPlayerLinks();
