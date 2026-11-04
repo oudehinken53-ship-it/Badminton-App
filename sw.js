@@ -1,7 +1,7 @@
 // Service Worker for Badminton Management System 2.0
 // Caches ONLY static assets. Never caches API responses, private user data or tokens.
 
-const CACHE_NAME = 'bms-static-v2.31';
+const CACHE_NAME = 'bms-static-v2.32';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -16,6 +16,17 @@ const STATIC_ASSETS = [
   './icon-maskable-512.png',
   './apple-touch-icon.png'
 ];
+
+// The browser refuses a redirected response for a page load and shows an error page instead.
+// A host may redirect /index.html to /, and the installed app starts on /index.html.
+function withoutRedirect(response) {
+  if (!response || !response.redirected) return response;
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
+}
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -49,12 +60,14 @@ self.addEventListener('fetch', event => {
   // Network first, so that page and script always belong together. The cache only serves offline.
   event.respondWith(
     fetch(url.href, { cache: 'no-cache' }).then(networkResponse => {
-      if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-        const responseToCache = networkResponse.clone();
+      const cacheable = networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic';
+      const response = withoutRedirect(networkResponse);
+      if (cacheable) {
+        const responseToCache = response.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
       }
-      return networkResponse;
-    }).catch(() => caches.match(event.request))
+      return response;
+    }).catch(() => caches.match(event.request).then(withoutRedirect))
   );
 });
 
