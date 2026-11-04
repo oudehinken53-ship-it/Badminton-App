@@ -537,7 +537,8 @@ function demoRankings(user, data) {
   const today = berlinToday();
   const seasonYear = today.substring(0, 4);
   const events = demoEvents();
-  const group = RANKING_GROUP_LABELS[data.rankingGroup] ? data.rankingGroup : scoringRankingGroup_(user, seasonYear);
+  const canViewAllLists = user.role !== 'PLAYER';
+  const group = canViewAllLists && RANKING_GROUP_LABELS[data.rankingGroup] ? data.rankingGroup : scoringRankingGroup_(user, seasonYear);
   const yearMonth = /^\d{4}-\d{2}$/.test(String(data.yearMonth || '')) ? data.yearMonth : today.substring(0, 7);
   const months = scoringMonthsOfSeason_(events, seasonYear);
   if (!months.includes(today.substring(0, 7))) months.push(today.substring(0, 7));
@@ -550,6 +551,7 @@ function demoRankings(user, data) {
     yearMonth,
     months,
     rankingGroup: group,
+    canViewAllLists,
     myRankingGroup: scoringRankingGroup_(user, seasonYear),
     ...scoringStandings_(events, scoringPlayersOfGroup_(demoMembers(), group, seasonYear), seasonYear, yearMonth)
   };
@@ -1643,7 +1645,7 @@ async function changeAttendance(entry, nextState, controls) {
   const buttons = controls ? [...controls.querySelectorAll('button')] : [];
   buttons.forEach(b => { b.disabled = true; });
   try {
-    await callApi('setAttendance', {
+    const saved = await callApi('setAttendance', {
       sessionId,
       playerId: entry.playerId,
       state: nextState,
@@ -1653,12 +1655,34 @@ async function changeAttendance(entry, nextState, controls) {
     });
     showToast(`Gespeichert: ${fullName(entry)}, ${ATTENDANCE_LABELS[nextState]}`);
     dom.attendanceReason.value = '';
+    // The answer already holds what the server stored for this person. Loading the whole list again
+    // would cost several seconds per entry, the version check still catches changes by others.
+    applySavedAttendance(sessionId, entry, saved);
   } catch (err) {
     showToast(`Fehler: ${err.message}`, 6000);
+    // After an error or a conflict the own picture may be outdated
+    await loadAttendance(sessionId);
   }
-  // Always the state the server now holds, also after an error or a conflict
-  await loadAttendance(sessionId);
   if (state.currentUser && entry.playerId === me) loadPlayerRank();
+}
+
+function applySavedAttendance(sessionId, entry, saved) {
+  const data = state.attendance;
+  if (!data || data.sessionId !== sessionId || state.detailSessionId !== sessionId) return;
+  let row = data.entries.find(e => e.playerId === entry.playerId);
+  if (!row) {
+    row = { playerId: entry.playerId, firstName: entry.firstName, lastName: entry.lastName, registrationState: 'UNDECIDED' };
+    data.entries.push(row);
+    data.entries.sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
+    data.others = data.others.filter(p => p.playerId !== entry.playerId);
+  }
+  row.attendanceState = saved.state;
+  row.version = saved.version;
+  if (!saved.unchanged) {
+    row.updatedAt = saved.updatedAt || new Date().toISOString();
+    row.updatedByName = fullName(state.currentUser);
+  }
+  renderAttendance();
 }
 
 function setMyAttendance(nextState) {
@@ -1903,7 +1927,7 @@ function renderBoard() {
   dom.leaderboardValueHead.textContent = BOARD_LABELS[board];
   dom.rankingHint.textContent = '';
   dom.rankingMe.textContent = '';
-  syncRankingGroupTabs(board !== 'LEGACY' && board !== 'ARCHIVE' && Boolean(r && r.active && r.rankingGroup));
+  syncRankingGroupTabs(board !== 'LEGACY' && board !== 'ARCHIVE' && Boolean(r && r.active && r.canViewAllLists));
 
   if (board === 'ARCHIVE') {
     renderArchive();
@@ -1970,7 +1994,7 @@ function renderArchive() {
   }
   dom.rankingSeason.value = selected.seasonYear;
   // The seasons of the old rules have one list for everybody
-  syncRankingGroupTabs(!selected.oldRules && Boolean(archive.rankingGroup));
+  syncRankingGroupTabs(!selected.oldRules && Boolean(archive.canViewAllLists));
   dom.leaderboardValueHead.textContent = selected.oldRules ? 'Teilnahmen' : 'Punkte';
   dom.rankingHint.textContent = selected.oldRules
     ? `Historische Wertung ${selected.seasonYear}, alte Regeln: nur Gesamtsummen, keine einzelnen Trainingstage. Stand ${formatDate(selected.sourceDate)}.`
