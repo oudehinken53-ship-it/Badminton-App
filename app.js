@@ -42,8 +42,9 @@ function saveDeviceToken(token) {
 
 const ROLE_LABELS = { PLAYER: 'Spieler', ORGANIZER: 'Trainer', ADMIN: 'Admin' };
 const RANKING_GROUP_LABELS = { ADULT: 'Erwachsene', YOUTH: 'Jugend' };
-const DEMO_NOTIFICATION_DEFAULTS = { CANCELED: true, CHANGED: true, NEW_SESSION: true, TRAINER_ALERT: true, REMINDER: false, MONTHLY: false, PROGRESS: false };
+const DEMO_NOTIFICATION_DEFAULTS = { SYSTEM_ALERT: true, CANCELED: true, CHANGED: true, NEW_SESSION: true, TRAINER_ALERT: true, REMINDER: false, MONTHLY: false, PROGRESS: false };
 const NOTIFICATION_LABELS = {
+  SYSTEM_ALERT: 'Störung der Automatik (nur Admins)',
   CANCELED: 'Training abgesagt',
   CHANGED: 'Training geändert (Halle oder Uhrzeit)',
   NEW_SESSION: 'Zusätzliches Training',
@@ -243,6 +244,17 @@ const dom = {
   attendanceReasonWrap: document.getElementById('attendanceReasonWrap'),
   attendanceReason: document.getElementById('attendanceReason'),
   attendanceList: document.getElementById('attendanceList'),
+  attendanceBulk: document.getElementById('attendanceBulk'),
+  attendanceConfirmedBtn: document.getElementById('attendanceConfirmedBtn'),
+  attendanceSelectionBar: document.getElementById('attendanceSelectionBar'),
+  attendanceSelectionCount: document.getElementById('attendanceSelectionCount'),
+  attendanceSelectedPresent: document.getElementById('attendanceSelectedPresent'),
+  attendanceSelectedAbsent: document.getElementById('attendanceSelectedAbsent'),
+  bulkInviteBtn: document.getElementById('bulkInviteBtn'),
+  bulkInviteResult: document.getElementById('bulkInviteResult'),
+  bulkInviteInfo: document.getElementById('bulkInviteInfo'),
+  bulkInviteCopyBtn: document.getElementById('bulkInviteCopyBtn'),
+  bulkInviteList: document.getElementById('bulkInviteList'),
   attendanceAddBox: document.getElementById('attendanceAddBox'),
   attendanceSearch: document.getElementById('attendanceSearch'),
   attendanceSearchResults: document.getElementById('attendanceSearchResults'),
@@ -307,6 +319,7 @@ const ERROR_MESSAGES = {
   INVALID_PUSH_SUBSCRIPTION: 'Dieses Gerät konnte nicht angemeldet werden.',
   INVALID_NOTIFICATION_SETTINGS: 'Diese Auswahl gibt es nicht.',
   INVALID_RANKING_DATA: 'Bitte prüfe den Jahrgang und die Rangliste.',
+  BUSY: 'Gerade speichern sehr viele gleichzeitig. Bitte versuch es gleich noch einmal, nichts wurde gespeichert.',
   INVALID_PROFILE_DATA: 'Bitte prüfe Name und Geburtsdatum. Namen beginnen mit einem Buchstaben.',
   PROFILE_NO_CHANGE: 'Du hast nichts geändert.',
   PROFILE_REQUEST_CLOSED: 'Diese Anfrage ist schon erledigt.',
@@ -914,6 +927,29 @@ async function runMockApi(action, data) {
 
     case 'setAttendance':
       return demoSetAttendance(user, data);
+
+    case 'setAttendanceBulk': {
+      const saved = [];
+      const conflicts = [];
+      data.entries.forEach(entry => {
+        try {
+          saved.push(demoSetAttendance(user, { sessionId: data.sessionId, reason: data.reason, ...entry }));
+        } catch (err) {
+          if (err.code !== 'ATTENDANCE_CONFLICT') throw err;
+          conflicts.push(entry.playerId);
+        }
+      });
+      return { sessionId: data.sessionId, saved, conflicts, missing: [] };
+    }
+
+    case 'createInvitesBulk': {
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      const invites = Object.values(mockDb.users).filter(u => !u.invitePending && u.playerId !== user.playerId && !u.demoInactive).map((u, i) => {
+        u.invitePending = true;
+        return { playerId: u.playerId, firstName: u.firstName, lastName: u.lastName, role: u.role, code: `DEMO${i}-CODE${i}` };
+      });
+      return { invites, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString() };
+    }
 
     case 'getAttendanceAudit': {
       if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
@@ -1552,7 +1588,7 @@ function renderNotificationBox(settings, on) {
   if (!on) return;
   const role = state.currentUser?.role;
   Object.keys(NOTIFICATION_LABELS)
-    .filter(key => key !== 'TRAINER_ALERT' || role === 'ORGANIZER' || role === 'ADMIN')
+    .filter(key => (key !== 'TRAINER_ALERT' || role === 'ORGANIZER' || role === 'ADMIN') && (key !== 'SYSTEM_ALERT' || role === 'ADMIN'))
     .forEach(key => {
       const label = document.createElement('label');
       const input = document.createElement('input');
@@ -1963,6 +1999,7 @@ function fullName(person) {
 }
 
 function resetAttendanceBox() {
+  state.attendancePicks = new Set();
   state.attendance = null;
   dom.attendanceBox.hidden = true;
   dom.attendanceAddBox.open = false;
@@ -2025,8 +2062,87 @@ function renderAttendance() {
     dom.attendanceList.append(empty);
   }
   data.entries.forEach(entry => dom.attendanceList.append(attendanceRow(entry, canChange)));
+  renderAttendanceBulk(canChange);
   renderAttendanceSearch();
 }
+
+// Who has confirmed but is not entered yet: the usual evening in one tap
+function attendanceOpenConfirmed() {
+  return (state.attendance?.entries || []).filter(e => e.registrationState === 'CONFIRMED' && e.attendanceState === 'UNKNOWN');
+}
+
+function attendancePicked() {
+  const data = state.attendance;
+  if (!data || !state.attendancePicks) return [];
+  const others = data.others.map(p => ({ ...p, attendanceState: 'UNKNOWN', version: 0 }));
+  return [...data.entries, ...others].filter(e => state.attendancePicks.has(e.playerId));
+}
+
+function renderAttendanceBulk(canChange) {
+  const open = attendanceOpenConfirmed();
+  const picked = attendancePicked();
+  dom.attendanceBulk.hidden = !canChange || (open.length === 0 && picked.length === 0);
+  dom.attendanceConfirmedBtn.hidden = open.length === 0;
+  dom.attendanceConfirmedBtn.textContent = `Alle ${open.length} Zugesagten: War da`;
+  dom.attendanceSelectionBar.hidden = picked.length === 0;
+  dom.attendanceSelectionCount.textContent = `${picked.length} ausgewählt`;
+}
+
+function attendancePickBox(person, label) {
+  const wrap = document.createElement('label');
+  wrap.className = 'attendance-pick';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = Boolean(state.attendancePicks?.has(person.playerId));
+  box.setAttribute('aria-label', `${fullName(person)} auswählen`);
+  box.addEventListener('change', () => {
+    if (!state.attendancePicks) state.attendancePicks = new Set();
+    if (box.checked) state.attendancePicks.add(person.playerId);
+    else state.attendancePicks.delete(person.playerId);
+    renderAttendanceBulk(true);
+  });
+  wrap.append(box, label);
+  return wrap;
+}
+
+async function saveAttendanceBulk(people, nextState) {
+  const data = state.attendance;
+  if (!data || people.length === 0) return;
+  const sessionId = data.sessionId;
+  const me = state.currentUser?.playerId;
+  const takenBack = people.filter(p => p.playerId !== me && p.attendanceState === 'PRESENT' && nextState !== 'PRESENT');
+  if (takenBack.length > 0 && !confirm(`${takenBack.length} ${takenBack.length === 1 ? 'Person ist' : 'Personen sind'} als anwesend bestätigt. Wirklich ändern? Die Änderung wird mit deinem Namen gespeichert.`)) return;
+
+  const buttons = [dom.attendanceConfirmedBtn, dom.attendanceSelectedPresent, dom.attendanceSelectedAbsent];
+  buttons.forEach(b => { b.disabled = true; });
+  try {
+    const result = await callApi('setAttendanceBulk', {
+      sessionId,
+      entries: people.map(p => ({ playerId: p.playerId, state: nextState, expectedVersion: p.version || 0 })),
+      requestId: crypto.randomUUID(),
+      reason: dom.attendanceReason.value.trim()
+    });
+    dom.attendanceReason.value = '';
+    state.attendancePicks = new Set();
+    result.saved.forEach(saved => mergeSavedAttendance(sessionId, people.find(p => p.playerId === saved.playerId), saved));
+    if (result.conflicts.length > 0 || result.missing.length > 0) {
+      showToast(`${result.saved.length} gespeichert. Bei ${result.conflicts.length + result.missing.length} hat jemand anderes inzwischen geändert, bitte prüfen.`, 6000);
+      await loadAttendance(sessionId);
+    } else {
+      showToast(`${result.saved.length} gespeichert: ${ATTENDANCE_LABELS[nextState]}`);
+      renderAttendance();
+    }
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+    await loadAttendance(sessionId);
+  }
+  buttons.forEach(b => { b.disabled = false; });
+  if (people.some(p => p.playerId === me)) loadPlayerRank();
+}
+
+dom.attendanceConfirmedBtn.addEventListener('click', () => saveAttendanceBulk(attendanceOpenConfirmed(), 'PRESENT'));
+dom.attendanceSelectedPresent.addEventListener('click', () => saveAttendanceBulk(attendancePicked(), 'PRESENT'));
+dom.attendanceSelectedAbsent.addEventListener('click', () => saveAttendanceBulk(attendancePicked(), 'ABSENT'));
 
 function attendanceRow(entry, canChange) {
   const row = document.createElement('div');
@@ -2046,7 +2162,7 @@ function attendanceRow(entry, canChange) {
     by.textContent = `Zuletzt von ${entry.updatedByName}`;
     info.append(by);
   }
-  row.append(info);
+  row.append(canChange ? attendancePickBox(entry, info) : info);
 
   if (canChange) {
     const actions = document.createElement('div');
@@ -2086,7 +2202,7 @@ function renderAttendanceSearch() {
       btn.className = 'btn btn-confirm';
       btn.textContent = 'War da';
       btn.addEventListener('click', () => changeAttendance({ ...person, attendanceState: 'UNKNOWN', version: 0 }, 'PRESENT', row));
-      row.append(name, btn);
+      row.append(attendancePickBox(person, name), btn);
       dom.attendanceSearchResults.append(row);
     });
 }
@@ -2135,8 +2251,12 @@ async function changeAttendance(entry, nextState, controls) {
 }
 
 function applySavedAttendance(sessionId, entry, saved) {
+  if (mergeSavedAttendance(sessionId, entry, saved)) renderAttendance();
+}
+
+function mergeSavedAttendance(sessionId, entry, saved) {
   const data = state.attendance;
-  if (!data || data.sessionId !== sessionId || state.detailSessionId !== sessionId) return;
+  if (!data || data.sessionId !== sessionId || state.detailSessionId !== sessionId) return false;
   let row = data.entries.find(e => e.playerId === entry.playerId);
   if (!row) {
     row = { playerId: entry.playerId, firstName: entry.firstName, lastName: entry.lastName, registrationState: 'UNDECIDED' };
@@ -2150,7 +2270,7 @@ function applySavedAttendance(sessionId, entry, saved) {
     row.updatedAt = saved.updatedAt || new Date().toISOString();
     row.updatedByName = fullName(state.currentUser);
   }
-  renderAttendance();
+  return true;
 }
 
 function setMyAttendance(nextState) {
@@ -3217,6 +3337,46 @@ dom.syncRolesBtn.addEventListener('click', async () => {
     showToast(`Fehler: ${err.message}`, 6000);
   }
   dom.syncRolesBtn.disabled = false;
+});
+
+dom.bulkInviteBtn.addEventListener('click', async () => {
+  if (!confirm('Einladungscodes für alle aktiven Personen ohne Zugang erzeugen? Sie werden nur dieses eine Mal angezeigt.')) return;
+  dom.bulkInviteBtn.disabled = true;
+  dom.bulkInviteResult.hidden = true;
+  try {
+    const { invites, expiresAt } = await callApi('createInvitesBulk', {});
+    dom.bulkInviteList.replaceChildren();
+    const until = new Date(expiresAt).toLocaleDateString('de-DE');
+    state.bulkInviteText = invites.map(i => `${i.firstName} ${i.lastName}: ${i.code}`).join('\n');
+    invites.forEach(invite => {
+      const row = document.createElement('div');
+      row.className = 'bulk-invite-row';
+      const name = document.createElement('span');
+      name.textContent = `${invite.firstName} ${invite.lastName}${invite.role === 'PLAYER' ? '' : ` (${ROLE_LABELS[invite.role]})`}`;
+      const code = document.createElement('code');
+      code.textContent = invite.code;
+      row.append(name, code);
+      dom.bulkInviteList.append(row);
+    });
+    dom.bulkInviteInfo.textContent = invites.length === 0
+      ? 'Alle aktiven Personen haben schon einen Zugang oder einen offenen Code.'
+      : `${invites.length} Codes, gültig bis ${until}. Bitte jetzt sichern, sie werden nicht noch einmal angezeigt.`;
+    dom.bulkInviteCopyBtn.hidden = invites.length === 0;
+    dom.bulkInviteResult.hidden = false;
+    await loadPlayerLinks();
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  }
+  dom.bulkInviteBtn.disabled = false;
+});
+
+dom.bulkInviteCopyBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(state.bulkInviteText || '');
+    showToast('Liste kopiert.');
+  } catch (err) {
+    showToast('Kopieren ging nicht, bitte die Liste von Hand übernehmen.', 6000);
+  }
 });
 
 dom.linkBtn.addEventListener('click', async () => {

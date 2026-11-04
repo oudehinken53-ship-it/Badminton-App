@@ -130,6 +130,14 @@
             <label for="attendanceReason" class="attendance-label">Begründung der Korrektur:</label>
             <input id="attendanceReason" type="text" maxlength="200" class="demo-selector attendance-input" placeholder="z. B. War laut Hallenbuch da">
           </div>
+          <div id="attendanceBulk" class="attendance-bulk" hidden>
+            <button id="attendanceConfirmedBtn" class="btn btn-confirm" type="button"></button>
+            <div id="attendanceSelectionBar" class="attendance-selection" hidden>
+              <span id="attendanceSelectionCount" role="status"></span>
+              <button id="attendanceSelectedPresent" class="btn btn-confirm" type="button">War da</button>
+              <button id="attendanceSelectedAbsent" class="btn btn-decline" type="button">War nicht da</button>
+            </div>
+          </div>
           <div id="attendanceList" aria-live="polite"></div>
           <details id="attendanceAddBox" class="orga-details">
             <summary>+ Weitere Anwesende bestätigen</summary>
@@ -277,6 +285,7 @@
         <button class="orga-menu-item" type="button" data-orga-view="ranking">🏅 Ranglisten<span>Wer in welcher Rangliste steht</span></button>
         <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
         <button id="orgaMenuProfiles" class="orga-menu-item" type="button" data-orga-view="profiles" hidden>📝 Mitgliederdaten<span id="orgaMenuProfilesCount">Name und Geburtsdatum</span></button>
+        <a id="orgaMenuShuttle" class="orga-menu-item" href="https://www.appsheet.com/start/52b54560-9607-4ddc-a6b2-6802a26d5376" target="_blank" rel="noopener noreferrer">📣 Beitrag vorschlagen<span>Für Instagram und Facebook</span></a>
         <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur & System<span>Punkte korrigieren, Prüfung</span></button>
       </div>
 
@@ -390,6 +399,16 @@
         <h2 class="section-title">Zugänge</h2>
         <p class="settings-note">Die Rechte kommen aus der Spalte Rolle der Teilnehmerverwaltung: Admin, Trainer, sonst Spieler. Der Abgleich läuft stündlich. Steht dort eine Rolle, gilt sie auch für neue Codes, die Auswahl unten zählt nur für Personen ohne Eintrag.</p>
         <button id="syncRolesBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 12px;">Rollen jetzt abgleichen</button>
+        <div class="pref-card">
+          <div style="font-size: 0.85rem; font-weight: 600;">Codes für alle ohne Zugang</div>
+          <p class="settings-note">Erzeugt für jede aktive Person ohne Gerät und ohne offenen Code einen Einladungscode. Die Codes werden nur einmal angezeigt.</p>
+          <button id="bulkInviteBtn" class="btn btn-primary" type="button" style="width: 100%;">Codes erzeugen</button>
+          <div id="bulkInviteResult" hidden>
+            <p id="bulkInviteInfo" class="settings-note" role="status"></p>
+            <button id="bulkInviteCopyBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 8px;">Liste kopieren</button>
+            <div id="bulkInviteList" class="bulk-invite-list"></div>
+          </div>
+        </div>
         <div class="pref-card" id="linkCard">
           <label for="linkPlayerSelect" style="font-size: 0.85rem; font-weight: 600;">Spieler:</label>
           <select id="linkPlayerSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
