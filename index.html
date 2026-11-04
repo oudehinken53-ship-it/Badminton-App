@@ -69,7 +69,13 @@
     </fieldset>
     <p id="settingsRankingNote" class="settings-note" hidden></p>
     <p class="settings-note">Termine, für die du zugesagt hast oder bei denen du als anwesend eingetragen bist, bleiben immer sichtbar.</p>
-    <p class="settings-note"><a href="hilfe.html">Anleitung: App installieren</a></p>
+    <fieldset id="notificationBox" class="settings-group" hidden>
+      <legend>Benachrichtigungen</legend>
+      <p id="notificationStatus" class="settings-note" role="status"></p>
+      <button id="notificationToggleBtn" class="btn btn-primary" type="button"></button>
+      <div id="notificationCategories"></div>
+    </fieldset>
+    <p class="settings-note"><a href="hilfe.html">Anleitung: App installieren und Benachrichtigungen</a></p>
     <button id="settingsCloseBtn" class="btn btn-primary" type="button">Schließen</button>
   </dialog>
 

@@ -1,7 +1,7 @@
 // Service Worker for Badminton Management System 2.0
 // Caches ONLY static assets. Never caches API responses, private user data or tokens.
 
-const CACHE_NAME = 'bms-static-v2.22';
+const CACHE_NAME = 'bms-static-v2.23';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -56,4 +56,28 @@ self.addEventListener('fetch', event => {
       return networkResponse;
     }).catch(() => caches.match(event.request))
   );
+});
+
+// Notifications. The text comes encrypted from the backend, a link can only point into this app.
+self.addEventListener('push', event => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  event.waitUntil(self.registration.showNotification(data.title || 'SV Union Lohne Badminton', {
+    body: data.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: './index.html' }
+  }));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => {
+    const open = windows.find(w => 'focus' in w);
+    return open ? open.focus() : self.clients.openWindow('./index.html');
+  }));
 });

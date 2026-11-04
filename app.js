@@ -42,6 +42,16 @@ function saveDeviceToken(token) {
 
 const ROLE_LABELS = { PLAYER: 'Spieler', ORGANIZER: 'Trainer', ADMIN: 'Admin' };
 const RANKING_GROUP_LABELS = { ADULT: 'Erwachsene', YOUTH: 'Jugend' };
+const DEMO_NOTIFICATION_DEFAULTS = { CANCELED: true, CHANGED: true, NEW_SESSION: true, TRAINER_ALERT: true, REMINDER: false, MONTHLY: false, PROGRESS: false };
+const NOTIFICATION_LABELS = {
+  CANCELED: 'Training abgesagt',
+  CHANGED: 'Training geändert (Halle oder Uhrzeit)',
+  NEW_SESSION: 'Zusätzliches Training',
+  REMINDER: 'Erinnerung am Trainingstag (12 Uhr)',
+  MONTHLY: 'Ergebnis im Monatscup',
+  PROGRESS: 'Neues Level oder Abzeichen',
+  TRAINER_ALERT: 'Trainer: wenige Zusagen am Trainingstag (12 Uhr)'
+};
 const SESSION_VIEW_LABELS = { ALL: 'Alle Termine', ADULT: 'Nur Erwachsene', YOUTH: 'Nur Jugend' };
 const matchesSessionView = (audience, view) => !view || view === 'ALL' || (audience || 'ADULT') === view;
 const WEEKDAYS = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
@@ -185,6 +195,10 @@ const dom = {
   settingsViewGroup: document.getElementById('settingsViewGroup'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
   sessionViewHint: document.getElementById('sessionViewHint'),
+  notificationBox: document.getElementById('notificationBox'),
+  notificationStatus: document.getElementById('notificationStatus'),
+  notificationToggleBtn: document.getElementById('notificationToggleBtn'),
+  notificationCategories: document.getElementById('notificationCategories'),
   syncHint: document.getElementById('syncHint'),
   settingsRankingNote: document.getElementById('settingsRankingNote'),
   rankingGroupTabs: document.getElementById('rankingGroupTabs'),
@@ -272,6 +286,8 @@ const ERROR_MESSAGES = {
   ATTENDANCE_CONFLICT: 'Jemand anderes hat diesen Eintrag gerade geändert. Die Liste wurde neu geladen, bitte prüfen. Nichts wurde überschrieben.',
   ATTENDANCE_NOT_OPEN: 'Die Anwesenheit kann erst ab Beginn des Termins eingetragen werden.',
   INVALID_SESSION_VIEW: 'Diese Auswahl gibt es nicht.',
+  INVALID_PUSH_SUBSCRIPTION: 'Dieses Gerät konnte nicht angemeldet werden.',
+  INVALID_NOTIFICATION_SETTINGS: 'Diese Auswahl gibt es nicht.',
   INVALID_RANKING_DATA: 'Bitte prüfe den Jahrgang und die Rangliste.',
   ATTENDANCE_WINDOW_CLOSED: 'Die Frist für diesen Termin ist vorbei. Korrekturen macht ein Admin.',
   CORRECTION_REASON_REQUIRED: 'Bitte gib eine Begründung für die Korrektur an.',
@@ -347,7 +363,7 @@ async function callApi(action, data = {}) {
 const STORED_READS = new Set(['whoami', 'listSessions', 'listTemplates', 'getPreferences', 'getProgress']);
 const MEMORY_READS = new Set(['getRankings', 'getLeaderboard', 'getSessionDetail']);
 const READ_ACTIONS = new Set([...STORED_READS, ...MEMORY_READS, 'getAttendance', 'getSessionRoster', 'getSeasonArchive',
-  'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration']);
+  'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration']);
 const READ_CACHE_KEY = 'bms_read_cache';
 const READ_CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const readCache = new Map();
@@ -688,6 +704,21 @@ async function runMockApi(action, data) {
       target.rankingGroup = data.rankingGroup === 'AUTO' ? '' : data.rankingGroup;
       return demoRankingMember(target, berlinToday().substring(0, 4));
     }
+
+    case 'getNotificationSettings':
+      return { settings: { ...DEMO_NOTIFICATION_DEFAULTS, ...user.notificationSettings }, activeDevices: user.demoDevice ? 1 : 0 };
+
+    case 'setNotificationSettings':
+      user.notificationSettings = { ...DEMO_NOTIFICATION_DEFAULTS, ...user.notificationSettings, ...data.settings };
+      return { settings: user.notificationSettings };
+
+    case 'savePushSubscription':
+      user.demoDevice = true;
+      return { active: true };
+
+    case 'removePushSubscription':
+      user.demoDevice = false;
+      return { active: false };
 
     case 'setSessionView': {
       if (!SESSION_VIEW_LABELS[data.view]) throw apiError('INVALID_SESSION_VIEW');
@@ -1271,6 +1302,120 @@ function syncSettingsDialog() {
 dom.settingsBtn.addEventListener('click', () => {
   syncSettingsDialog();
   dom.settingsDialog.showModal();
+  loadNotificationBox();
+});
+
+// In the demo there is no real device, the switch only shows how the page behaves
+function pushIsAvailable() {
+  if (state.persona !== 'live') return true;
+  return Boolean(cfg.vapidPublicKey) && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function currentPushSubscription() {
+  const registration = await navigator.serviceWorker.ready;
+  return registration.pushManager.getSubscription();
+}
+
+async function loadNotificationBox() {
+  // Without a key the feature is not switched on yet and nothing is offered
+  if (state.persona === 'live' && !cfg.vapidPublicKey) {
+    dom.notificationBox.hidden = true;
+    return;
+  }
+  dom.notificationBox.hidden = false;
+  dom.notificationCategories.replaceChildren();
+  dom.notificationToggleBtn.hidden = true;
+  if (!pushIsAvailable()) {
+    dom.notificationStatus.textContent = 'Auf diesem Gerät nicht möglich. Auf dem iPhone geht es nur in der über Safari installierten App, siehe Anleitung.';
+    return;
+  }
+  dom.notificationStatus.textContent = 'Lade …';
+  try {
+    const { settings, activeDevices } = await callApi('getNotificationSettings');
+    if (state.persona !== 'live') {
+      renderNotificationBox(settings, activeDevices > 0);
+      return;
+    }
+    const subscription = await currentPushSubscription();
+    // A phone can change hands: what this browser receives always belongs to whoever is signed in here
+    if (subscription) {
+      const json = subscription.toJSON();
+      await callApi('savePushSubscription', { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth });
+    }
+    renderNotificationBox(settings, Boolean(subscription));
+  } catch (err) {
+    dom.notificationStatus.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+function renderNotificationBox(settings, on) {
+  const denied = state.persona === 'live' && Notification.permission === 'denied';
+  dom.notificationStatus.textContent = denied
+    ? 'Du hast Benachrichtigungen für diese App abgelehnt. Erlauben kannst du sie nur in den Einstellungen deines Handys.'
+    : on ? 'Auf diesem Gerät eingeschaltet.' : 'Auf diesem Gerät ausgeschaltet.';
+  dom.notificationToggleBtn.hidden = denied;
+  dom.notificationToggleBtn.textContent = on ? 'Auf diesem Gerät ausschalten' : 'Auf diesem Gerät einschalten';
+  dom.notificationToggleBtn.dataset.on = String(on);
+  dom.notificationCategories.replaceChildren();
+  if (!on) return;
+  const role = state.currentUser?.role;
+  Object.keys(NOTIFICATION_LABELS)
+    .filter(key => key !== 'TRAINER_ALERT' || role === 'ORGANIZER' || role === 'ADMIN')
+    .forEach(key => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = settings[key] === true;
+      input.addEventListener('change', async () => {
+        input.disabled = true;
+        try {
+          const saved = await callApi('setNotificationSettings', { settings: { [key]: input.checked } });
+          input.checked = saved.settings[key] === true;
+        } catch (err) {
+          input.checked = !input.checked;
+          showToast(`Fehler: ${err.message}`, 6000);
+        }
+        input.disabled = false;
+      });
+      label.append(input, ` ${NOTIFICATION_LABELS[key]}`);
+      dom.notificationCategories.append(label);
+    });
+}
+
+async function switchPushOn() {
+  if (state.persona !== 'live') return callApi('savePushSubscription', {});
+  if (await Notification.requestPermission() !== 'granted') throw apiError('PUSH_NOT_ALLOWED');
+  const registration = await navigator.serviceWorker.ready;
+  const key = Uint8Array.from(atob(cfg.vapidPublicKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+  const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  const json = subscription.toJSON();
+  try {
+    return await callApi('savePushSubscription', { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth });
+  } catch (err) {
+    // Without the server's acknowledgement the device must not look switched on
+    await subscription.unsubscribe();
+    throw err;
+  }
+}
+
+async function switchPushOff() {
+  if (state.persona !== 'live') return callApi('removePushSubscription', {});
+  const subscription = await currentPushSubscription();
+  if (!subscription) return null;
+  await callApi('removePushSubscription', { endpoint: subscription.endpoint });
+  return subscription.unsubscribe();
+}
+
+dom.notificationToggleBtn.addEventListener('click', async () => {
+  dom.notificationToggleBtn.disabled = true;
+  try {
+    if (dom.notificationToggleBtn.dataset.on === 'true') await switchPushOff();
+    else await switchPushOn();
+  } catch (err) {
+    showToast(err.code === 'PUSH_NOT_ALLOWED' ? 'Benachrichtigungen wurden nicht erlaubt.' : `Fehler: ${err.message}`, 6000);
+  }
+  dom.notificationToggleBtn.disabled = false;
+  await loadNotificationBox();
 });
 dom.settingsCloseBtn.addEventListener('click', () => dom.settingsDialog.close());
 dom.settingsDialog.addEventListener('change', async event => {
