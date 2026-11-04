@@ -62,6 +62,7 @@
     <!-- Tab 1: Sessions (Trainings) -->
     <section id="tab-sessions" class="tab-content active">
       <div id="trainingList">
+      <div id="attendanceDue"></div>
       <!-- Player Ranking Position in Current Year (Trainingswertung) -->
       <div id="playerRankSummary" class="player-rank-summary" aria-live="polite">
         <!-- Rendered dynamically by app.js -->
@@ -83,6 +84,33 @@
           <button id="detailConfirmBtn" class="btn btn-confirm">✓ Zusagen</button>
           <button id="detailDeclineBtn" class="btn btn-decline">✗ Absagen</button>
         </div>
+
+        <section id="attendanceBox" class="attendance-box" hidden>
+          <h3>Wer war tatsächlich da?</h3>
+          <p id="attendanceStatus" role="status"></p>
+          <div id="attendanceSelf" class="action-buttons">
+            <button id="attendanceSelfPresent" class="btn btn-confirm" type="button">✓ Ich war da</button>
+            <button id="attendanceSelfAbsent" class="btn btn-decline" type="button">✗ Ich war nicht da</button>
+          </div>
+          <div id="attendanceReasonWrap" hidden>
+            <label for="attendanceReason" class="attendance-label">Begründung der Korrektur:</label>
+            <input id="attendanceReason" type="text" maxlength="200" class="demo-selector attendance-input" placeholder="z. B. War laut Hallenbuch da">
+          </div>
+          <div id="attendanceList" aria-live="polite"></div>
+          <details id="attendanceAddBox" class="orga-details">
+            <summary>+ Weitere Anwesende bestätigen</summary>
+            <input id="attendanceSearch" type="search" autocomplete="off" aria-label="Mitglied suchen" placeholder="Name suchen" class="demo-selector attendance-input">
+            <div id="attendanceSearchResults"></div>
+          </details>
+          <div class="attendance-meta">
+            <span id="attendanceStand"></span>
+            <button id="attendanceRefreshBtn" class="btn btn-reset" type="button">↻ Aktualisieren</button>
+          </div>
+          <details id="attendanceAuditBox" class="orga-details" hidden>
+            <summary>Änderungsverlauf</summary>
+            <div id="attendanceAuditList"></div>
+          </details>
+        </section>
 
         <div id="detailParticipantsBox">
           <div id="detailParticipantsTitle" class="orga-roster-title"></div>
@@ -167,21 +195,38 @@
     <section id="tab-leaderboard" class="tab-content">
       <button class="orga-back" type="button">← Zurück</button>
       <h2 class="section-title">
-        <span>Jahressieger <span id="currentYear">2026</span></span>
+        <span>Wertungen <span id="currentYear">2026</span></span>
         <button id="refreshLeaderboardBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
       </h2>
-      <table class="leaderboard-table" aria-label="Rangliste Jahreswertung">
+      <div id="rankingTabs" class="ranking-tabs">
+        <button type="button" data-board="LEGACY">Saison 2026</button>
+        <button type="button" data-board="ANNUAL">Jahrescup</button>
+        <button type="button" data-board="CONSISTENCY">Konstanzpokal</button>
+        <button type="button" data-board="MONTHLY">Monatscup</button>
+        <button type="button" data-board="ARCHIVE">Historische Wertungen</button>
+      </div>
+      <label id="rankingMonthWrap" class="ranking-select" hidden>Monat: <select id="rankingMonth" class="demo-selector"></select></label>
+      <label id="rankingSeasonWrap" class="ranking-select" hidden>Saison: <select id="rankingSeason" class="demo-selector"></select></label>
+      <p id="rankingHint" class="ranking-hint"></p>
+      <p id="rankingMe" class="ranking-me" role="status"></p>
+      <table class="leaderboard-table" aria-label="Rangliste">
         <thead>
           <tr>
             <th style="width: 50px;">Rang</th>
             <th>Spieler</th>
-            <th style="text-align: right;">Teilnahmen</th>
+            <th id="leaderboardValueHead" style="text-align: right;">Teilnahmen</th>
           </tr>
         </thead>
         <tbody id="leaderboardBody">
           <!-- Rendered by app.js -->
         </tbody>
       </table>
+    </section>
+
+    <!-- Tab: Profile -->
+    <section id="tab-profile" class="tab-content">
+      <h2 class="section-title">Mein Fortschritt</h2>
+      <div id="profileBody" aria-live="polite"></div>
     </section>
 
     <!-- Tab 4: Organizer & Admin Panel -->
@@ -215,6 +260,9 @@
           </div>
           <label for="newVenue" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Halle:</label>
           <select id="newVenue" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+          <label style="display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 0.85rem;">
+            <input id="newCounts" type="checkbox" checked> Zählt für die Wertung
+          </label>
           <button id="createSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Termin anlegen</button>
         </details>
       </div>
@@ -306,6 +354,17 @@
           <input id="correctReason" type="text" maxlength="200" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;" placeholder="z. B. War am 02.11. dabei">
           <button id="correctBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Korrektur buchen</button>
         </div>
+        <div class="pref-card" style="margin-bottom: 16px;">
+          <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Saison archivieren</h3>
+          <p style="font-size: 0.85rem; color: var(--gray-600);">Sichert den endgültigen Stand einer abgeschlossenen Saison. Danach sind keine Änderungen an ihr mehr möglich.</p>
+          <label for="archiveYear" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Saison:</label>
+          <select id="archiveYear" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+          <div id="archiveInfo" role="status" style="font-size: 0.85rem; color: var(--gray-600); margin-top: 8px;"></div>
+          <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <button id="archivePreviewBtn" class="btn btn-primary" style="flex: 1;">Prüfen</button>
+            <button id="archiveApplyBtn" class="btn btn-decline" style="flex: 1;" disabled>Endgültig archivieren</button>
+          </div>
+        </div>
         <div class="pref-card">
           <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">System</h3>
           <button id="systemHealthBtn" class="btn btn-decline" style="width: 100%;">❤️ System-Gesundheitscheck prüfen</button>
@@ -325,6 +384,10 @@
       <span class="icon">⚙️</span>
       <span>Stammtage</span>
     </button>
+    <button class="nav-tab" data-tab="profile">
+      <span class="icon">🏅</span>
+      <span>Profil</span>
+    </button>
     <button class="nav-tab" data-tab="admin" id="adminNavTab" style="display: none;">
       <span class="icon">📋</span>
       <span>Orga</span>
@@ -332,6 +395,7 @@
   </nav>
 
   <script src="config.js"></script>
+  <script src="scoring.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,12 +1,13 @@
 // Service Worker for Badminton Management System 2.0
 // Caches ONLY static assets. Never caches API responses, private user data or tokens.
 
-const CACHE_NAME = 'bms-static-v2.14';
+const CACHE_NAME = 'bms-static-v2.15';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './scoring.js',
   './config.js',
   './manifest.json'
 ];
