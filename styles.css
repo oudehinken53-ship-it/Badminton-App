@@ -195,6 +195,13 @@ header.app-header {
 .bulk-invite-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--gray-200, #ddd); overflow-wrap: anywhere; }
 .bulk-invite-row code { flex: none; font-weight: 700; }
 a.orga-menu-item { display: block; text-decoration: none; color: inherit; box-sizing: border-box; }
+.install-box { margin: 10px 12px 0; padding: 10px 12px; background: var(--white, #fff); border: 1px solid var(--gray-200, #ddd); border-radius: 8px; font-size: 0.9rem; }
+.install-box[hidden] { display: none; }
+.install-box p { margin: 0 0 8px; }
+.install-actions { display: flex; align-items: center; gap: 12px; }
+.install-actions .btn { flex: 1; }
+.install-actions a { min-height: 44px; line-height: 44px; }
+.install-close { margin-left: auto; min-width: 44px; min-height: 44px; background: none; border: none; font-size: 1rem; cursor: pointer; }
 .profile-subtitle { font-size: 1rem; margin: 16px 0 8px; }
 .profile-member { padding: 10px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
 .profile-member summary { font-weight: 600; cursor: pointer; min-height: 28px; }

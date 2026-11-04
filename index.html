@@ -59,6 +59,15 @@
     </div>
   </header>
 
+  <aside id="installBox" class="install-box" hidden>
+    <p id="installText"></p>
+    <div class="install-actions">
+      <button id="installBtn" class="btn btn-primary" type="button" hidden>App installieren</button>
+      <a href="hilfe.html">Anleitung</a>
+      <button id="installCloseBtn" class="install-close" type="button" aria-label="Hinweis schließen">✕</button>
+    </div>
+  </aside>
+
   <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
     <h2 id="settingsTitle">Einstellungen</h2>
     <fieldset id="settingsViewGroup" class="settings-group">
@@ -85,6 +94,7 @@
       <button id="notificationToggleBtn" class="btn btn-primary" type="button"></button>
       <div id="notificationCategories"></div>
     </fieldset>
+    <button id="installGearBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 8px;" hidden>App installieren</button>
     <p class="settings-note"><a href="hilfe.html">Anleitung: App installieren und Benachrichtigungen</a></p>
     <button id="settingsCloseBtn" class="btn btn-primary" type="button">Schließen</button>
   </dialog>

@@ -21,6 +21,7 @@ const isConfigured = Boolean(cfg.gatewayUrl) && !/YOUR-WORKER/.test(cfg.gatewayU
 
 // The device key keeps a phone signed in. Storage can be unavailable, then the code is asked for again.
 const DEVICE_TOKEN_KEY = 'bms_device_token';
+const INSTALL_HINT_CLOSED_KEY = 'bms_install_hint_closed';
 
 function loadDeviceToken() {
   try {
@@ -195,6 +196,11 @@ const dom = {
   newAudience: document.getElementById('newAudience'),
   settingsBtn: document.getElementById('settingsBtn'),
   settingsDialog: document.getElementById('settingsDialog'),
+  installBox: document.getElementById('installBox'),
+  installText: document.getElementById('installText'),
+  installBtn: document.getElementById('installBtn'),
+  installGearBtn: document.getElementById('installGearBtn'),
+  installCloseBtn: document.getElementById('installCloseBtn'),
   profileBox: document.getElementById('profileBox'),
   profileFirstName: document.getElementById('profileFirstName'),
   profileLastName: document.getElementById('profileLastName'),
@@ -1645,6 +1651,74 @@ dom.notificationToggleBtn.addEventListener('click', async () => {
   dom.notificationToggleBtn.disabled = false;
   await loadNotificationBox();
 });
+// --- Installing the app ---
+// Only some browsers let a page start the installation, and only they fire this event. The others get
+// the step that works there. iPhones keep the storage of the app apart from Safari, so a new code is needed.
+let installPrompt = null;
+
+function installIsRunningAsApp() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+
+function installHintText() {
+  const agent = navigator.userAgent;
+  const isIos = /iPad|iPhone|iPod/.test(agent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (installPrompt) return 'Nutze das Training als App auf deinem Gerät, mit eigenem Symbol und ohne Browserleiste.';
+  if (isIos) {
+    return 'Als App nutzen: In Safari auf „Teilen" tippen, dann „Zum Home-Bildschirm". In der App meldest du dich neu an und brauchst dafür einen Einladungscode.';
+  }
+  if (/Android/.test(agent) && /Firefox/.test(agent)) return 'Als App nutzen: In Firefox geht das über das Browser-Menü, die Anleitung zeigt die Schritte.';
+  return '';
+}
+
+function installHintWasClosed() {
+  try {
+    return localStorage.getItem(INSTALL_HINT_CLOSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function renderInstallHint() {
+  const running = installIsRunningAsApp();
+  const text = running ? '' : installHintText();
+  dom.installText.textContent = text;
+  dom.installBox.hidden = !text || installHintWasClosed();
+  dom.installBtn.hidden = !installPrompt;
+  dom.installGearBtn.hidden = running || !installPrompt;
+}
+
+async function startInstall() {
+  if (!installPrompt) return;
+  const prompt = installPrompt;
+  // Works only once, the browser offers it again on a later visit if it was declined
+  installPrompt = null;
+  await prompt.prompt();
+  await prompt.userChoice;
+  renderInstallHint();
+}
+
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  installPrompt = event;
+  renderInstallHint();
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  renderInstallHint();
+});
+dom.installBtn.addEventListener('click', startInstall);
+dom.installGearBtn.addEventListener('click', startInstall);
+dom.installCloseBtn.addEventListener('click', () => {
+  try {
+    localStorage.setItem(INSTALL_HINT_CLOSED_KEY, '1');
+  } catch {
+    // Then it comes back on the next visit
+  }
+  dom.installBox.hidden = true;
+});
+renderInstallHint();
+
 dom.settingsCloseBtn.addEventListener('click', () => dom.settingsDialog.close());
 dom.settingsViewGroup.addEventListener('change', async event => {
   const view = event.target.value;
