@@ -279,6 +279,7 @@ const ERROR_MESSAGES = {
   POINTS_ARE_DERIVED: 'Punkte dieser Saison ergeben sich aus der Anwesenheit. Bitte die Anwesenheit des Termins korrigieren.',
   SEASON_FINALIZED: 'Diese Saison ist archiviert und kann nicht mehr geändert werden.',
   SEASON_NOT_OVER: 'Diese Saison läuft noch oder ihre Korrekturfrist ist nicht vorbei.',
+  LEGACY_TRIGGER_ACTIVE: 'Der alte Zeittrigger MainStart läuft noch. Bitte zuerst abschalten, sonst wächst der Endstand weiter.',
   OPEN_SESSIONS: 'In dieser Saison sind noch Termine offen.',
   NO_SOURCE_FOR_SEASON: 'Für diese Saison liegen keine Daten vor.',
   ALREADY_ARCHIVED: 'Diese Saison ist bereits archiviert.',
