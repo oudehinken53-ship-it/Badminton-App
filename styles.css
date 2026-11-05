@@ -903,6 +903,46 @@ input:checked + .slider:before {
 }
 
 a.hall-chip { text-decoration: none; }
+.loading-indicator {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 190;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px 8px 14px;
+  background: var(--union-white);
+  color: var(--gray-900);
+  border: 1px solid var(--gray-200);
+  border-radius: 9999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.loading-indicator[hidden] { display: none; }
+.loading-rally { position: relative; display: block; width: 84px; height: 40px; flex: none; border-bottom: 2px solid var(--gray-300); }
+.loading-net { position: absolute; left: 41px; bottom: 0; width: 2px; height: 16px; background: var(--union-red); }
+.loading-shuttle { position: absolute; left: 0; top: 0; width: 15px; height: 20px; animation: shuttle-rally 1.3s linear infinite; }
+/* Over the net and back, always cork first */
+@keyframes shuttle-rally {
+  0% { transform: translate(0, 18px) rotate(50deg); }
+  12% { transform: translate(17px, 5px) rotate(70deg); }
+  25% { transform: translate(34px, 0) rotate(90deg); }
+  38% { transform: translate(51px, 5px) rotate(110deg); }
+  49.9% { transform: translate(68px, 18px) rotate(130deg); }
+  50% { transform: translate(68px, 18px) rotate(-130deg); }
+  62% { transform: translate(51px, 5px) rotate(-110deg); }
+  75% { transform: translate(34px, 0) rotate(-90deg); }
+  88% { transform: translate(17px, 5px) rotate(-70deg); }
+  100% { transform: translate(0, 18px) rotate(-50deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-shuttle { animation: none; transform: translate(34px, 0) rotate(90deg); }
+}
 .knowledge-tools { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
 .knowledge-tools input[type="search"] { flex: 1 1 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 1rem; }
 .knowledge-category { font-size: 0.95rem; font-weight: 800; margin: 18px 0 6px; }

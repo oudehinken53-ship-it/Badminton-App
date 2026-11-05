@@ -15,6 +15,19 @@
 </head>
 <body>
 
+  <!-- Shows while the app waits for the server: a shuttlecock flying over the net -->
+  <div id="loadingIndicator" class="loading-indicator" role="status" aria-live="polite" hidden>
+    <span class="loading-rally" aria-hidden="true">
+      <span class="loading-net"></span>
+      <svg class="loading-shuttle" viewBox="0 0 24 32" width="20" height="26" focusable="false">
+        <path d="M7 12 L1 30 H23 L17 12 Z" fill="#fff" stroke="#6b7280" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M9.5 12 L7 30 M12 12 V30 M14.5 12 L17 30 M3 24 H21" fill="none" stroke="#9ca3af" stroke-width="1"/>
+        <path d="M7 12 A5 7 0 0 1 17 12 Z" fill="#E1031F"/>
+      </svg>
+    </span>
+    <span id="loadingText"></span>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast" class="toast" role="alert" aria-live="polite"></div>
 

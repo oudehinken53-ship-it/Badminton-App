@@ -359,8 +359,45 @@ function apiError(code) {
   return err;
 }
 
-// API Dispatcher (Mock vs Gateway)
-async function callApi(action, data = {}) {
+// Shown while waiting for the server. A short delay, so that a quick answer does not make it flicker.
+// It never blocks the page, the buttons of an action are disabled by the action itself.
+const LOADING_DELAY_MS = 150;
+const loadingIndicator = document.getElementById('loadingIndicator');
+const loadingText = document.getElementById('loadingText');
+const waiting = new Set();
+
+function renderLoading() {
+  const list = Array.from(waiting);
+  const shown = list.filter(entry => entry.visible);
+  loadingIndicator.hidden = shown.length === 0;
+  if (shown.length > 0) loadingText.textContent = shown.some(entry => entry.saving) ? 'Wird gespeichert …' : 'Lädt …';
+}
+
+function startLoading(action) {
+  const entry = { saving: !READ_ACTIONS.has(action), visible: false };
+  waiting.add(entry);
+  const timer = setTimeout(() => {
+    entry.visible = true;
+    renderLoading();
+  }, LOADING_DELAY_MS);
+  return () => {
+    clearTimeout(timer);
+    waiting.delete(entry);
+    renderLoading();
+  };
+}
+
+// API Dispatcher (Mock vs Gateway). A read that refreshes what is already on the screen passes quiet.
+async function callApi(action, data = {}, options = {}) {
+  const stopLoading = options.quiet ? () => {} : startLoading(action);
+  try {
+    return await sendApi(action, data);
+  } finally {
+    stopLoading();
+  }
+}
+
+async function sendApi(action, data) {
   // Demo Mode: run local mock backend
   if (state.persona !== 'live') {
     return runMockApi(action, data);
@@ -409,7 +446,7 @@ async function callApi(action, data = {}) {
 const STORED_READS = new Set(['whoami', 'listSessions', 'listTemplates', 'getPreferences', 'getProgress']);
 const MEMORY_READS = new Set(['getRankings', 'getLeaderboard', 'getSessionDetail']);
 const READ_ACTIONS = new Set([...STORED_READS, ...MEMORY_READS, 'getAttendance', 'getSessionRoster', 'getSeasonArchive',
-  'getProfile', 'listProfileRequests', 'listInactiveMembers', 'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration']);
+  'getProfile', 'listProfileRequests', 'listInactiveMembers', 'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration', 'listKnowledgeArticles', 'getKnowledgeHistory']);
 const READ_CACHE_KEY = 'bms_read_cache';
 const READ_CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const readCache = new Map();
@@ -473,7 +510,7 @@ async function cachedRead(action, data, apply, options = {}) {
 
   setRefreshing(1);
   try {
-    const fresh = await callApi(action, data);
+    const fresh = await callApi(action, data, { quiet: Boolean(hit) });
     // Not while a change arrived in between, that one emptied the cache for a reason
     const entry = { data: fresh, at: Date.now(), stored: STORED_READS.has(action) };
     readCache.set(key, entry);
@@ -3725,7 +3762,7 @@ function startKnowledgeEdit(article) {
 
 async function loadKnowledge() {
   const body = document.getElementById('knowledgeBody');
-  if (!knowledge.editing) body.innerHTML = '<p class="settings-note">Lädt …</p>';
+  if (!knowledge.editing) body.innerHTML = '';
   try {
     knowledge.articles = (await callApi('listKnowledgeArticles')).articles;
     renderKnowledge();
@@ -3771,7 +3808,7 @@ async function saveKnowledge() {
 
 async function showKnowledgeHistory(card) {
   const box = card.querySelector('.knowledge-history');
-  box.innerHTML = '<p class="settings-note">Lädt …</p>';
+  box.innerHTML = '';
   try {
     const { entries } = await callApi('getKnowledgeHistory', { articleId: card.dataset.id });
     box.innerHTML = entries.map(entry => `
