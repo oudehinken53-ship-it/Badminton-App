@@ -341,6 +341,7 @@ const ERROR_MESSAGES = {
   OPEN_SESSIONS: 'In dieser Saison sind noch Termine offen.',
   NO_SOURCE_FOR_SEASON: 'Für diese Saison liegen keine Daten vor.',
   ALREADY_ARCHIVED: 'Diese Saison ist bereits archiviert.',
+  ARCHIVE_VERIFY_FAILED: 'Die Kontrolle des Archivs ist fehlgeschlagen. Die Saison ist noch nicht abgeschlossen, bitte noch einmal archivieren.',
   UNMATCHED_PLAYERS: 'Punkte können nicht allen Mitgliedern zugeordnet werden.',
   INVALID_LEGACY_ROWS: 'In der Punkteliste stehen ungültige oder doppelte Zeilen.',
   INVALID_SCORING_RULES: 'Die Wertungsregeln im Sheet sind ungültig. Bitte den Admin informieren.',
@@ -3565,7 +3566,8 @@ dom.saveTemplateBtn.addEventListener('click', async () => {
 dom.systemHealthBtn.addEventListener('click', async () => {
   try {
     const res = await callApi('getSystemHealth');
-    alert(`Systemstatus: ${res.status}\nAlle Tabellen vorhanden: ${res.allTablesPresent ? 'Ja' : 'Nein'}\nOffene Batches: ${res.unresolvedCloseBatches}`);
+    const outbox = res.outbox ? `\nNachrichten: ${res.outbox.pending} wartend, ${res.outbox.stuck} hängend, ${res.outbox.failed} fehlgeschlagen (24 Stunden)` : '';
+    alert(`Systemstatus: ${res.status}${outbox}\nAlle Tabellen vorhanden: ${res.allTablesPresent ? 'Ja' : 'Nein'}\nOffene Batches: ${res.unresolvedCloseBatches}`);
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
   }
