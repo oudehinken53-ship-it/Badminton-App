@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
-  <title>App installieren | SV Union Lohne Badminton</title>
+  <title>Hilfe | SV Union Lohne Badminton</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/png" href="logo.png">
   <meta name="theme-color" content="#E1031F">
@@ -15,13 +15,113 @@
     .help section { background: #fff; border-radius: 12px; padding: 16px; margin: 16px 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
     .help ol, .help ul { padding-left: 22px; margin: 8px 0; }
     .help li { margin-bottom: 6px; }
+    .help section h2 + details, .help details { border-top: 1px solid #e5e7eb; }
+    .help section h2:not(:first-child) { margin-top: 20px; }
+    .help summary { min-height: 44px; padding: 10px 0; font-weight: 600; cursor: pointer; }
+    .help details p { margin: 0 0 12px; }
+    .help .help-title { font-size: 1.4rem; margin: 24px 0 8px; }
+    .help-nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .help-nav a { min-height: 44px; line-height: 44px; font-weight: 600; }
     .help .back { display: inline-block; min-height: 44px; line-height: 44px; font-weight: 600; }
   </style>
 </head>
 <body>
   <main class="help">
     <a class="back" href="./index.html">← Zur App</a>
-    <h1>App installieren</h1>
+    <h1>Hilfe</h1>
+    <nav class="help-nav" aria-label="Inhalt">
+      <a href="#faq">Häufige Fragen</a>
+      <a href="#installieren">App installieren</a>
+      <a href="#benachrichtigungen">Benachrichtigungen</a>
+      <a href="#probleme">Wenn etwas nicht klappt</a>
+    </nav>
+
+    <section id="faq">
+      <h2>Anmelden und Geräte</h2>
+      <details>
+        <summary>Woher bekomme ich meinen Einladungscode?</summary>
+        <p>Von einem Admin. Der Code gehört nur dir und gilt 7 Tage. Ein Google-Konto brauchst du nicht.</p>
+      </details>
+      <details>
+        <summary>Ich habe ein neues Handy. Was nun?</summary>
+        <p>Bitte einen Admin um einen neuen Code und gib ihn auf dem neuen Handy ein. Deine Punkte und Zusagen bleiben, sie hängen an deiner Person und nicht am Gerät.</p>
+      </details>
+      <details>
+        <summary>Meine Daten stimmen nicht.</summary>
+        <p>Tippe oben neben deinem Namen auf das Zahnrad und stelle dort eine Änderung von Name oder Geburtsdatum ein. Ein Admin gibt sie frei.</p>
+      </details>
+
+      <h2>Termine und Zusagen</h2>
+      <details>
+        <summary>Wie sage ich zu oder ab?</summary>
+        <p>Ein Tipp auf der Karte des Termins genügt. Eine Frist gibt es nicht, du kannst deine Antwort ändern, solange der Termin offen ist.</p>
+      </details>
+      <details>
+        <summary>Was sind Stammtage?</summary>
+        <p>Tage, an denen du meist kommst. Die App merkt dich dafür automatisch vor. Eine eigene Absage bleibt bestehen, auch wenn der Tag dein Stammtag ist. Wählst du einen Stammtag ab, wird nur die automatische Vormerkung zurückgenommen.</p>
+      </details>
+      <details>
+        <summary>Warum sehe ich nur manche Termine?</summary>
+        <p>Über das Zahnrad wählst du, ob du die Termine der Erwachsenen, der Jugend oder alle sehen möchtest. Termine, zu denen du zugesagt hast, bleiben immer sichtbar.</p>
+      </details>
+      <details>
+        <summary>Kann ich jemanden mitbringen?</summary>
+        <p>Ja. Öffne den Termin und melde unter „Gast anmelden" zum Beispiel jemanden fürs Schnuppertraining an. Entfernen können den Gast du, Trainer und Admins. Gäste sammeln keine Punkte.</p>
+      </details>
+      <details>
+        <summary>Wo finde ich die Hallen?</summary>
+        <p>Tippe im Termin auf PARK oder MZH. Es öffnet sich die Seite der Gemeinde Wietmarschen mit den Sporthallen.</p>
+      </details>
+
+      <h2 id="schluessel">Hallenschlüssel</h2>
+      <details>
+        <summary>Was bedeutet „Schlüssel dabei"?</summary>
+        <p>Mindestens eine Person mit Hallenschlüssel hat für diesen Termin zugesagt.</p>
+      </details>
+      <details>
+        <summary>Was bedeutet „Kein Schlüssel dabei"?</summary>
+        <p>Bisher hat niemand mit Schlüssel zugesagt. Das Training fällt deshalb nicht aus, und du kannst weiter zusagen. Sprecht euch im Zweifel in eurer WhatsApp-Gruppe ab. Fällt ein Training wirklich aus, ist der Termin in der App als abgesagt markiert.</p>
+      </details>
+      <details>
+        <summary>Ist das sicher?</summary>
+        <p>Nein, es ist nur eine Vorhersage aus den Zusagen. Die App kann nicht wissen, wer wirklich kommt.</p>
+      </details>
+
+      <h2>Anwesenheit und Punkte</h2>
+      <p>Die Regeln hier gelten ab dem 01.01.2027. Bis zum 31.12.2026 läuft die Wertung nach den bisherigen Regeln.</p>
+      <details>
+        <summary>Bekomme ich für eine Zusage Punkte?</summary>
+        <p>Nein. Punkte gibt es nur, wenn eingetragen ist, dass du wirklich da warst. Eine Zusage oder ein Stammtag zählt nie als Anwesenheit.</p>
+      </details>
+      <details>
+        <summary>Wer trägt ein, wer da war?</summary>
+        <p>Alle angemeldeten Mitglieder, für sich und für andere, ohne Freigabe. Das geht ab Beginn des Trainings bis 72 Stunden nach seinem Ende. Danach korrigiert nur noch ein Admin.</p>
+      </details>
+      <details>
+        <summary>Wie viele Punkte gibt es?</summary>
+        <p>10 Punkte für deinen ersten Trainingstag der Kalenderwoche, 5 für den zweiten, 0 für jeden weiteren.</p>
+      </details>
+      <details>
+        <summary>Welche Wertungen gibt es?</summary>
+        <p>Den Jahrescup nach Punkten, den Konstanzpokal nach aktiven Wochen und den Monatscup. Jugend und Erwachsene haben getrennte Ranglisten. Bei gleicher Punktzahl teilt ihr euch den Platz.</p>
+      </details>
+      <details>
+        <summary>Was sind Level und Abzeichen?</summary>
+        <p>Mit deinen Punkten steigst du im Level auf, zum Beispiel vom „Ersten Aufschlag" zur „Hallenlegende". Abzeichen gibt es etwa für dein erstes Training der Saison oder viele aktive Wochen. Du findest alles unter „Profil".</p>
+      </details>
+      <details>
+        <summary>Wer sieht meine Daten?</summary>
+        <p>Angemeldete Mitglieder sehen die Namen der aktiven Mitglieder, wer zugesagt hat und wer als anwesend eingetragen ist. Dein Geburtsdatum sehen nur du, Trainer und Admins.</p>
+      </details>
+
+      <h2>App und WhatsApp</h2>
+      <details>
+        <summary>Wofür ist was gedacht?</summary>
+        <p>In der App stehen Termine, Zusagen, Anwesenheit und Punkte. Absprachen laufen weiter über die WhatsApp-Gruppen. Informationen für Interessierte stehen auf der Seite des Vereins.</p>
+      </details>
+    </section>
+
+    <h2 id="installieren" class="help-title">App installieren</h2>
     <p>Zeigt die App oben den Knopf „App installieren", genügt ein Tipp darauf. Sonst helfen die Schritte unten.</p>
     <p>Die App kommt nicht aus dem App Store. Du legst sie über den Browser auf deinem Startbildschirm ab. Das dauert eine Minute und kostet nichts. Halte deinen Einladungscode bereit, falls die App danach nach ihm fragt.</p>
     <p>Die Beschriftungen können je nach Handy und Version etwas anders lauten.</p>
