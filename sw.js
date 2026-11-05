@@ -1,7 +1,7 @@
 // Service Worker for Badminton Management System 2.0
 // Caches ONLY static assets. Never caches API responses, private user data or tokens.
 
-const CACHE_NAME = 'bms-static-v2.32';
+const CACHE_NAME = 'bms-static-v2.33';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -79,7 +79,10 @@ self.addEventListener('push', event => {
   } catch {
     data = {};
   }
+  // Without its own tag a message can replace the one before, Firefox on Android does that.
+  // The tag of a repeated attempt is the same, so a repeat replaces instead of showing twice.
   event.waitUntil(self.registration.showNotification(data.title || 'SV Union Lohne Badminton', {
+    tag: data.tag || 'bms-' + Date.now() + '-' + Math.random(),
     body: data.body || '',
     icon: './icon-192.png',
     badge: './icon-192.png',
