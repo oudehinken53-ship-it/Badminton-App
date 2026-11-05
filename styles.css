@@ -902,6 +902,17 @@ input:checked + .slider:before {
   color: var(--union-white);
 }
 
+a.hall-chip { text-decoration: none; }
+.key-chip {
+  display: inline-block;
+  margin: 6px 0 0 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+.key-yes { background: var(--success-green-light); color: #166534; }
+.key-no { background: var(--union-red-light); color: var(--union-red-dark); }
 .hall-park { background: #5b21b6; }
 .hall-mzh { background: #0f766e; }
 .hall-other { background: var(--gray-600); }

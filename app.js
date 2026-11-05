@@ -1247,8 +1247,22 @@ function showSessionPage(sessionId) {
   loadSessionPage(sessionId);
 }
 
-function sessionHeadHtml(session) {
+const HALLS_URL = 'https://www.wietmarschen.de/tourismus-freizeit/sport-und-freizeitanlagen/sporthallen-und-sportplaetze/';
+
+function hallChipHtml(venue) {
   const hallClasses = { PARK: 'hall-park', MZH: 'hall-mzh' };
+  if (!hallClasses[venue]) return `<span class="hall-chip hall-other">📍 ${esc(venue)}</span>`;
+  return `<a class="hall-chip ${hallClasses[venue]}" href="${HALLS_URL}" target="_blank" rel="noopener noreferrer" aria-label="Halle ${esc(venue)}: Sporthallen der Gemeinde, öffnet in neuem Tab">📍 ${esc(venue)} ↗</a>`;
+}
+
+// Only a forecast from the confirmations. No state from the backend means nothing to show, for instance a canceled session.
+function keyChipHtml(session) {
+  if (session.keyCovered === true) return '<span class="key-chip key-yes">🔑 Schlüssel dabei</span>';
+  if (session.keyCovered === false) return '<span class="key-chip key-no">🔑 Kein Schlüssel dabei</span>';
+  return '';
+}
+
+function sessionHeadHtml(session) {
   const extras = [
     session.audience === 'YOUTH' ? '🧒 Jugend' : '',
     session.trainerName ? `👤 Trainer: ${esc(session.trainerName)}` : ''
@@ -1256,7 +1270,7 @@ function sessionHeadHtml(session) {
   return `
     <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
     <div class="session-when">${esc(session.startLocal)}–${esc(session.endLocal)} Uhr</div>
-    <span class="hall-chip ${hallClasses[session.venue] || 'hall-other'}">📍 ${esc(session.venue)}</span>
+    ${hallChipHtml(session.venue)}${keyChipHtml(session)}
     ${extras ? `<div class="session-venue">${extras}</div>` : ''}
   `;
 }
@@ -1886,7 +1900,7 @@ function renderSessions(allSessions) {
     card.tabIndex = 0;
     card.setAttribute('aria-label', `Details zu ${formatDate(session.dateLocal)}`);
     card.addEventListener('click', event => {
-      if (!event.target.closest('button')) openSession(session.sessionId);
+      if (!event.target.closest('button, a')) openSession(session.sessionId);
     });
     card.addEventListener('keydown', event => {
       if (event.key === 'Enter' && event.target === card) openSession(session.sessionId);
@@ -2407,7 +2421,9 @@ function renderAttendanceDue(sessions) {
     `;
     card.querySelector('.attendance-due-state').textContent = `Du: ${ATTENDANCE_LABELS[session.attendance.myState] || session.attendance.myState}`;
     card.querySelector('.attendance-due-deadline').textContent = `Noch bis ${formatDeadline(session.attendance.deadline)} bearbeitbar`;
-    card.addEventListener('click', () => openSession(session.sessionId));
+    card.addEventListener('click', event => {
+      if (!event.target.closest('a')) openSession(session.sessionId);
+    });
     dom.attendanceDue.append(card);
   });
 }
