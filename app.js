@@ -341,6 +341,10 @@ const ERROR_MESSAGES = {
   OPEN_SESSIONS: 'In dieser Saison sind noch Termine offen.',
   NO_SOURCE_FOR_SEASON: 'Für diese Saison liegen keine Daten vor.',
   ALREADY_ARCHIVED: 'Diese Saison ist bereits archiviert.',
+  INVALID_KNOWLEDGE_DATA: 'Bitte Titel und Kategorie ausfüllen. Links müssen mit http:// oder https:// beginnen. Text höchstens 6000 Zeichen, höchstens 10 Links mit je 300 Zeichen.',
+  KNOWLEDGE_NOT_FOUND: 'Dieser Artikel wurde nicht gefunden.',
+  KNOWLEDGE_ARCHIVED: 'Dieser Artikel ist archiviert. Stelle ihn zuerst wieder her.',
+  KNOWLEDGE_CONFLICT: 'Jemand hat diesen Artikel inzwischen geändert.',
   ARCHIVE_VERIFY_FAILED: 'Die Kontrolle des Archivs ist fehlgeschlagen. Die Saison ist noch nicht abgeschlossen, bitte noch einmal archivieren.',
   UNMATCHED_PLAYERS: 'Punkte können nicht allen Mitgliedern zugeordnet werden.',
   INVALID_LEGACY_ROWS: 'In der Punkteliste stehen ungültige oder doppelte Zeilen.',
@@ -1184,6 +1188,7 @@ function switchTab(tabName) {
   if (tabName === 'leaderboard') loadLeaderboard();
   if (tabName === 'profile') loadProfile();
   if (tabName === 'admin') loadOrgaTab();
+  if (tabName === 'knowledge') loadKnowledge();
 }
 
 // Sub pages get a history entry, so that the back button of the phone stays inside the app
@@ -1437,6 +1442,8 @@ function applyUser(me) {
   // Show Orga/Admin tab if role permits
   const canSeeAdmin = me.role === 'ORGANIZER' || me.role === 'ADMIN';
   dom.adminNavTab.style.display = canSeeAdmin ? 'flex' : 'none';
+  document.getElementById('profileKnowledgeBtn').hidden = !me.canKnowledge;
+  document.getElementById('orgaMenuKnowledge').hidden = !me.canKnowledge;
 }
 
 async function initUser() {
@@ -3587,6 +3594,244 @@ dom.systemHealthBtn.addEventListener('click', async () => {
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
   }
+});
+
+// --- Team knowledge. Articles are never kept in the stored answers of the app, the backend checks every call. ---
+
+const knowledge = { articles: [], query: '', showArchived: false, editing: null, conflict: null };
+const KNOWLEDGE_ACTIONS = { CREATE: 'Angelegt', EDIT: 'Bearbeitet', ARCHIVE: 'Archiviert', RESTORE: 'Wiederhergestellt' };
+
+function knowledgeWhen(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function knowledgeLinksHtml(links) {
+  const safe = (links || []).filter(link => /^https?:\/\//i.test(link.url));
+  if (safe.length === 0) return '';
+  return `<ul class="knowledge-links">${safe.map(link => `<li><a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${esc(link.label || link.url)}</a></li>`).join('')}</ul>`;
+}
+
+function knowledgeArticleHtml(article) {
+  const archived = article.status === 'ARCHIVED';
+  return `
+    <details class="knowledge-article${archived ? ' archived' : ''}" data-id="${esc(article.id)}">
+      <summary>${esc(article.title)}${archived ? ' (archiviert)' : ''}</summary>
+      <p class="knowledge-text">${esc(article.body)}</p>
+      ${knowledgeLinksHtml(article.links)}
+      <p class="knowledge-meta">Zuletzt geändert von ${esc(article.updatedByName || 'unbekannt')}, ${esc(knowledgeWhen(article.updatedAt))}</p>
+      <div class="knowledge-actions">
+        ${archived ? '' : `<button class="btn btn-primary" type="button" data-knowledge="edit">Bearbeiten</button>`}
+        <button class="btn" type="button" data-knowledge="history">Verlauf</button>
+        <button class="btn" type="button" data-knowledge="${archived ? 'restore' : 'archive'}">${archived ? 'Wiederherstellen' : 'Archivieren'}</button>
+      </div>
+      <div class="knowledge-history"></div>
+    </details>`;
+}
+
+function renderKnowledgeList() {
+  const box = document.getElementById('knowledgeList');
+  if (!box) return;
+  const query = knowledge.query.trim().toLowerCase();
+  const shown = knowledge.articles.filter(article => (knowledge.showArchived || article.status !== 'ARCHIVED') &&
+    (!query || `${article.title} ${article.category} ${article.body}`.toLowerCase().includes(query)));
+  if (shown.length === 0) {
+    box.innerHTML = `<p class="settings-note">${query ? 'Nichts gefunden.' : 'Noch keine Artikel.'}</p>`;
+    return;
+  }
+  const categories = Array.from(new Set(shown.map(article => article.category)));
+  box.innerHTML = categories.map(category => `
+    <h3 class="knowledge-category">${esc(category)}</h3>
+    ${shown.filter(article => article.category === category).map(knowledgeArticleHtml).join('')}`).join('');
+}
+
+function renderKnowledge() {
+  const body = document.getElementById('knowledgeBody');
+  if (knowledge.editing) {
+    renderKnowledgeForm(body);
+    return;
+  }
+  body.innerHTML = `
+    <div class="knowledge-tools">
+      <input id="knowledgeSearch" type="search" placeholder="Suchen" aria-label="Team-Wissen durchsuchen" value="${esc(knowledge.query)}">
+      <button class="btn btn-primary" type="button" data-knowledge="new">+ Neuer Artikel</button>
+      <button class="btn" type="button" data-knowledge="toggle-archived">${knowledge.showArchived ? 'Archiv ausblenden' : 'Archiv zeigen'}</button>
+    </div>
+    <div id="knowledgeList"></div>`;
+  document.getElementById('knowledgeSearch').addEventListener('input', event => {
+    knowledge.query = event.target.value;
+    renderKnowledgeList();
+  });
+  renderKnowledgeList();
+}
+
+function renderKnowledgeForm(body) {
+  const edit = knowledge.editing;
+  const categories = Array.from(new Set(knowledge.articles.map(article => article.category)));
+  const conflict = knowledge.conflict;
+  body.innerHTML = `
+    <form id="knowledgeForm" class="knowledge-form">
+      ${conflict ? `<div class="knowledge-conflict" role="alert">
+        <strong>Jemand hat diesen Artikel inzwischen geändert.</strong> Dein Text unten ist nicht gespeichert und nicht verloren. Aktueller Stand von ${esc(conflict.updatedByName || 'unbekannt')}:
+        <p class="knowledge-text">${esc(conflict.body)}</p>
+        <button class="btn" type="button" data-knowledge="use-current">Meine Fassung auf diesen Stand setzen</button>
+      </div>` : ''}
+      <label for="knowledgeTitle">Titel</label>
+      <input id="knowledgeTitle" type="text" maxlength="120" required value="${esc(edit.title)}">
+      <label for="knowledgeCategory">Kategorie</label>
+      <input id="knowledgeCategory" type="text" maxlength="40" required list="knowledgeCategories" value="${esc(edit.category)}">
+      <datalist id="knowledgeCategories">${categories.map(category => `<option value="${esc(category)}"></option>`).join('')}</datalist>
+      <label for="knowledgeText">Text</label>
+      <textarea id="knowledgeText" maxlength="6000">${esc(edit.body)}</textarea>
+      <label for="knowledgeLinks">Links, je Zeile: Bezeichnung | https://…</label>
+      <textarea id="knowledgeLinks" rows="3">${esc(edit.linksText)}</textarea>
+      <div class="knowledge-actions" style="margin-top: 12px;">
+        <button class="btn btn-primary" type="submit">Speichern</button>
+        <button class="btn" type="button" data-knowledge="cancel">Abbrechen</button>
+      </div>
+    </form>`;
+}
+
+function readKnowledgeForm() {
+  const edit = knowledge.editing;
+  edit.title = document.getElementById('knowledgeTitle').value;
+  edit.category = document.getElementById('knowledgeCategory').value;
+  edit.body = document.getElementById('knowledgeText').value;
+  edit.linksText = document.getElementById('knowledgeLinks').value;
+}
+
+function knowledgeLinksFromText(text) {
+  return text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+    const split = line.lastIndexOf('|');
+    return split < 0 ? { label: '', url: line } : { label: line.slice(0, split).trim(), url: line.slice(split + 1).trim() };
+  });
+}
+
+function startKnowledgeEdit(article) {
+  knowledge.conflict = null;
+  knowledge.editing = {
+    id: article ? article.id : '',
+    expectedVersion: article ? article.version : '',
+    title: article ? article.title : '',
+    category: article ? article.category : '',
+    body: article ? article.body : '',
+    linksText: article ? article.links.map(link => (link.label ? `${link.label} | ${link.url}` : link.url)).join('\n') : '',
+    requestId: crypto.randomUUID()
+  };
+  renderKnowledge();
+  window.scrollTo(0, 0);
+}
+
+async function loadKnowledge() {
+  const body = document.getElementById('knowledgeBody');
+  if (!knowledge.editing) body.innerHTML = '<p class="settings-note">Lädt …</p>';
+  try {
+    knowledge.articles = (await callApi('listKnowledgeArticles')).articles;
+    renderKnowledge();
+  } catch (err) {
+    knowledge.articles = [];
+    body.innerHTML = `<p class="settings-note" role="alert">${esc(err.message)}</p>`;
+  }
+}
+
+async function saveKnowledge() {
+  readKnowledgeForm();
+  const edit = knowledge.editing;
+  const data = { title: edit.title, category: edit.category, body: edit.body, links: knowledgeLinksFromText(edit.linksText), requestId: edit.requestId };
+  if (edit.id) {
+    data.articleId = edit.id;
+    data.expectedVersion = edit.expectedVersion;
+  }
+  // A signed request holds about 18 KB. Longer documents belong in a link.
+  if (new TextEncoder().encode(JSON.stringify(data)).length > 18000) {
+    showToast('Der Artikel ist zu lang. Kürze ihn oder verlinke ein Dokument.');
+    return;
+  }
+  try {
+    await callApi('saveKnowledgeArticle', data);
+    knowledge.editing = null;
+    knowledge.conflict = null;
+    showToast('Gespeichert.');
+    await loadKnowledge();
+  } catch (err) {
+    if (err.code === 'KNOWLEDGE_CONFLICT') {
+      knowledge.articles = (await callApi('listKnowledgeArticles')).articles;
+      knowledge.conflict = knowledge.articles.find(article => article.id === edit.id) || null;
+      edit.requestId = crypto.randomUUID();
+      renderKnowledge();
+      window.scrollTo(0, 0);
+      return;
+    }
+    // A new attempt counts as a new request only after a refusal, the text stays in the form
+    if (err.code === 'INVALID_KNOWLEDGE_DATA') edit.requestId = crypto.randomUUID();
+    showToast(err.message);
+  }
+}
+
+async function showKnowledgeHistory(card) {
+  const box = card.querySelector('.knowledge-history');
+  box.innerHTML = '<p class="settings-note">Lädt …</p>';
+  try {
+    const { entries } = await callApi('getKnowledgeHistory', { articleId: card.dataset.id });
+    box.innerHTML = entries.map(entry => `
+      <details class="knowledge-article">
+        <summary>Version ${esc(entry.version)}: ${esc(KNOWLEDGE_ACTIONS[entry.action] || entry.action)}, ${esc(entry.editedByName || 'unbekannt')}</summary>
+        <p class="knowledge-meta">${esc(knowledgeWhen(entry.editedAt))}</p>
+        <p class="knowledge-text"><strong>${esc(entry.title)}</strong>\n${esc(entry.body)}</p>
+        ${knowledgeLinksHtml(entry.links)}
+      </details>`).join('');
+  } catch (err) {
+    box.innerHTML = `<p class="settings-note" role="alert">${esc(err.message)}</p>`;
+  }
+}
+
+async function setKnowledgeArchived(article, archived) {
+  if (archived && !window.confirm(`„${article.title}" archivieren? Der Artikel und sein Verlauf bleiben erhalten.`)) return;
+  try {
+    await callApi('archiveKnowledgeArticle', { articleId: article.id, expectedVersion: article.version, archived });
+    showToast(archived ? 'Archiviert.' : 'Wiederhergestellt.');
+  } catch (err) {
+    showToast(err.message);
+  }
+  await loadKnowledge();
+}
+
+document.getElementById('knowledgeBody').addEventListener('click', event => {
+  const button = event.target.closest('[data-knowledge]');
+  if (!button) return;
+  const card = button.closest('.knowledge-article');
+  const article = card ? knowledge.articles.find(item => item.id === card.dataset.id) : null;
+  const action = button.dataset.knowledge;
+  if (action === 'new') startKnowledgeEdit(null);
+  if (action === 'edit' && article) startKnowledgeEdit(article);
+  if (action === 'history' && card) showKnowledgeHistory(card);
+  if (action === 'archive' && article) setKnowledgeArchived(article, true);
+  if (action === 'restore' && article) setKnowledgeArchived(article, false);
+  if (action === 'toggle-archived') {
+    knowledge.showArchived = !knowledge.showArchived;
+    renderKnowledge();
+  }
+  if (action === 'cancel') {
+    knowledge.editing = null;
+    knowledge.conflict = null;
+    renderKnowledge();
+  }
+  if (action === 'use-current' && knowledge.conflict) {
+    readKnowledgeForm();
+    knowledge.editing.expectedVersion = knowledge.conflict.version;
+    knowledge.conflict = null;
+    renderKnowledge();
+  }
+});
+
+document.getElementById('knowledgeBody').addEventListener('submit', event => {
+  event.preventDefault();
+  saveKnowledge();
+});
+
+['profileKnowledgeBtn', 'orgaMenuKnowledge'].forEach(id => {
+  document.getElementById(id).addEventListener('click', () => navigate(() => switchTab('knowledge')));
 });
 
 // Sign-in with an invitation code

@@ -281,7 +281,14 @@
     </section>
 
     <!-- Tab: Profile -->
+    <section id="tab-knowledge" class="tab-content">
+      <h2 class="section-title">Team-Wissen</h2>
+      <p class="settings-note">Nur für Trainer und Vorstand. Bitte keine Passwörter und keine Daten von Mitgliedern eintragen.</p>
+      <div id="knowledgeBody" aria-live="polite"></div>
+    </section>
+
     <section id="tab-profile" class="tab-content">
+      <button id="profileKnowledgeBtn" class="orga-menu-item" type="button" hidden>📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
       <h2 class="section-title">Mein Fortschritt</h2>
       <div id="profileBody" aria-live="polite"></div>
     </section>
@@ -294,6 +301,7 @@
         <button class="orga-menu-item" type="button" data-orga-view="sessions">📅 Termine<span>Liste, zusätzlicher Termin</span></button>
         <button class="orga-menu-item" type="button" data-orga-view="templates">🔁 Standardtermine<span>Wiederkehrende Zeiten</span></button>
         <button class="orga-menu-item" type="button" data-orga-view="ranking">🏅 Ranglisten<span>Wer in welcher Rangliste steht</span></button>
+        <button id="orgaMenuKnowledge" class="orga-menu-item" type="button">📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
         <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
         <button id="orgaMenuProfiles" class="orga-menu-item" type="button" data-orga-view="profiles" hidden>📝 Mitgliederdaten<span id="orgaMenuProfilesCount">Name und Geburtsdatum</span></button>
         <a id="orgaMenuShuttle" class="orga-menu-item" href="https://www.appsheet.com/start/52b54560-9607-4ddc-a6b2-6802a26d5376" target="_blank" rel="noopener noreferrer">📣 Beitrag vorschlagen<span>Für Instagram und Facebook</span></a>
