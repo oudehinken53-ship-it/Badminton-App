@@ -142,6 +142,7 @@
           <button id="detailConfirmBtn" class="btn btn-confirm">✓ Zusagen</button>
           <button id="detailDeclineBtn" class="btn btn-decline">✗ Absagen</button>
         </div>
+        <button id="detailTrainerBtn" class="btn btn-primary trainer-signup-btn" type="button" hidden></button>
 
         <section id="attendanceBox" class="attendance-box" hidden>
           <h3>Wer war tatsächlich da?</h3>
@@ -316,6 +317,7 @@
         <button class="orga-menu-item" type="button" data-orga-view="ranking">🏅 Ranglisten<span>Wer in welcher Rangliste steht</span></button>
         <button id="orgaMenuKnowledge" class="orga-menu-item" type="button">📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
         <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
+        <button id="orgaMenuTrainers" class="orga-menu-item" type="button" data-orga-view="trainers" hidden>🧑‍🏫 Trainer-Einsätze<span>Anmeldungen für die Jugend</span></button>
         <button id="orgaMenuProfiles" class="orga-menu-item" type="button" data-orga-view="profiles" hidden>📝 Mitgliederdaten<span id="orgaMenuProfilesCount">Name und Geburtsdatum</span></button>
         <a id="orgaMenuShuttle" class="orga-menu-item" href="https://www.appsheet.com/start/52b54560-9607-4ddc-a6b2-6802a26d5376" target="_blank" rel="noopener noreferrer">📣 Beitrag vorschlagen<span>Für Instagram und Facebook</span></a>
         <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur & System<span>Punkte korrigieren, Prüfung</span></button>
@@ -405,6 +407,13 @@
         <p class="settings-note">Trainingstage zählen aus allen Terminen. Jede Person steht aber nur in einer Rangliste. Automatisch heißt: U18 laut Jahrgang in der Jugend, sonst bei den Erwachsenen. Eine Änderung verschiebt die ganze laufende Saison der Person in die andere Liste.</p>
         <input id="rankingMemberSearch" type="search" class="demo-selector" placeholder="Name suchen" aria-label="Mitglied suchen" style="width: 100%; padding: 10px; font-size: 0.9rem; margin-bottom: 10px;">
         <div id="rankingMemberList" aria-live="polite"></div>
+      </div>
+
+      <div id="orga-trainers" class="orga-view" hidden>
+        <button class="orga-back" type="button">← Zurück</button>
+        <h2 class="section-title">Trainer-Einsätze</h2>
+        <p class="settings-note">Anmeldungen als Trainer für Jugendtermine im laufenden Jahr, ohne abgesagte. Sie zählen nicht für Ranglisten und Punkte.</p>
+        <div id="trainerSignupList" aria-live="polite"></div>
       </div>
 
       <div id="orga-profiles" class="orga-view" hidden>

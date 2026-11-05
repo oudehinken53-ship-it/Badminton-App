@@ -341,6 +341,7 @@ const ERROR_MESSAGES = {
   OPEN_SESSIONS: 'In dieser Saison sind noch Termine offen.',
   NO_SOURCE_FOR_SEASON: 'Für diese Saison liegen keine Daten vor.',
   ALREADY_ARCHIVED: 'Diese Saison ist bereits archiviert.',
+  TRAINER_SIGNUP_YOUTH_ONLY: 'Als Trainer anmelden geht nur bei Jugendterminen.',
   INVALID_KNOWLEDGE_DATA: 'Bitte Titel und Kategorie ausfüllen. Links müssen mit http:// oder https:// beginnen. Text höchstens 6000 Zeichen, höchstens 10 Links mit je 300 Zeichen.',
   KNOWLEDGE_NOT_FOUND: 'Dieser Artikel wurde nicht gefunden.',
   KNOWLEDGE_ARCHIVED: 'Dieser Artikel ist archiviert. Stelle ihn zuerst wieder her.',
@@ -446,7 +447,7 @@ async function sendApi(action, data) {
 const STORED_READS = new Set(['whoami', 'listSessions', 'listTemplates', 'getPreferences', 'getProgress']);
 const MEMORY_READS = new Set(['getRankings', 'getLeaderboard', 'getSessionDetail']);
 const READ_ACTIONS = new Set([...STORED_READS, ...MEMORY_READS, 'getAttendance', 'getSessionRoster', 'getSeasonArchive',
-  'getProfile', 'listProfileRequests', 'listInactiveMembers', 'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration', 'listKnowledgeArticles', 'getKnowledgeHistory']);
+  'getProfile', 'listProfileRequests', 'listInactiveMembers', 'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration', 'listKnowledgeArticles', 'getKnowledgeHistory', 'getTrainerSignups']);
 const READ_CACHE_KEY = 'bms_read_cache';
 const READ_CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const readCache = new Map();
@@ -1304,6 +1305,12 @@ function keyChipHtml(session) {
   return '';
 }
 
+function trainerChipHtml(session) {
+  if (session.trainerNames && session.trainerNames.length > 0) return `<span class="trainer-chip trainer-yes">🧑‍🏫 ${esc(session.trainerNames.join(', '))}</span>`;
+  if (session.needsTrainer === true) return '<span class="trainer-chip trainer-no">🧑‍🏫 Noch kein Trainer</span>';
+  return '';
+}
+
 function sessionHeadHtml(session) {
   const extras = [
     session.audience === 'YOUTH' ? '🧒 Jugend' : '',
@@ -1312,7 +1319,7 @@ function sessionHeadHtml(session) {
   return `
     <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
     <div class="session-when">${esc(session.startLocal)}–${esc(session.endLocal)} Uhr</div>
-    ${hallChipHtml(session.venue)}${keyChipHtml(session)}
+    ${hallChipHtml(session.venue)}${keyChipHtml(session)}${trainerChipHtml(session)}
     ${extras ? `<div class="session-venue">${extras}</div>` : ''}
   `;
 }
@@ -1340,6 +1347,10 @@ function drawSessionPage(detail) {
     state.sharedSession = Boolean(session.attendance);
 
     dom.detailActions.hidden = !isOpen;
+    const trainerBtn = document.getElementById('detailTrainerBtn');
+    trainerBtn.hidden = !(canManage && session.audience === 'YOUTH' && isOpen);
+    trainerBtn.textContent = session.iAmTrainer ? 'Trainer-Anmeldung zurücknehmen' : '🧑‍🏫 Als Trainer anmelden';
+    trainerBtn.dataset.active = session.iAmTrainer ? 'true' : 'false';
     dom.detailConfirmBtn.disabled = myRegistration === 'CONFIRMED';
     dom.detailDeclineBtn.disabled = myRegistration === 'DECLINED';
 
@@ -1417,6 +1428,43 @@ async function setMyRegistration(stateToSet, btn) {
 }
 
 dom.detailConfirmBtn.addEventListener('click', () => setMyRegistration('CONFIRMED', dom.detailConfirmBtn));
+document.getElementById('detailTrainerBtn').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await callApi('setTrainerSignup', { sessionId: state.detailSessionId, active: button.dataset.active !== 'true' });
+    showToast(button.dataset.active === 'true' ? 'Trainer-Anmeldung zurückgenommen.' : 'Als Trainer angemeldet.');
+    await loadSessionPage(state.detailSessionId);
+  } catch (err) {
+    showToast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function loadTrainerSignups() {
+  const box = document.getElementById('trainerSignupList');
+  box.innerHTML = '';
+  try {
+    const report = await callApi('getTrainerSignups', { year: String(new Date().getFullYear()) });
+    if (report.entries.length === 0) {
+      box.innerHTML = '<p class="settings-note">Noch keine Anmeldungen.</p>';
+      return;
+    }
+    box.innerHTML = `
+      <table class="trainer-report">
+        <thead><tr><th>Trainer</th><th>Stattgefunden</th><th>Geplant</th></tr></thead>
+        <tbody>${report.totals.map(t => `<tr><td>${esc(t.name)}</td><td>${esc(t.done)}</td><td>${esc(t.planned)}</td></tr>`).join('')}</tbody>
+      </table>
+      <table class="trainer-report">
+        <thead><tr><th>Termin</th><th>Halle</th><th>Trainer</th></tr></thead>
+        <tbody>${report.entries.map(e => `<tr><td>${esc(formatDate(e.dateLocal))}, ${esc(e.startLocal)}</td><td>${esc(e.venue)}</td><td>${esc(e.name)}</td></tr>`).join('')}</tbody>
+      </table>`;
+  } catch (err) {
+    box.innerHTML = `<p class="settings-note" role="alert">${esc(err.message)}</p>`;
+  }
+}
+
 dom.detailDeclineBtn.addEventListener('click', () => setMyRegistration('DECLINED', dom.detailDeclineBtn));
 
 async function addGuest() {
@@ -2748,6 +2796,7 @@ document.querySelectorAll('[data-orga-view]').forEach(btn => {
     if (btn.dataset.orgaView === 'system') refreshCorrectInfo();
     if (btn.dataset.orgaView === 'ranking') loadRankingMembers();
     if (btn.dataset.orgaView === 'profiles') loadProfilesView();
+    if (btn.dataset.orgaView === 'trainers') loadTrainerSignups();
   });
 });
 
@@ -3100,6 +3149,7 @@ function sessionLabel(s) {
 async function loadOrgaTab() {
   const isAdmin = state.currentUser?.role === 'ADMIN';
   dom.orgaMenuAccess.hidden = !isAdmin;
+  document.getElementById('orgaMenuTrainers').hidden = !isAdmin;
   dom.orgaMenuSystem.hidden = !isAdmin;
   dom.orgaMenuProfiles.hidden = false;
   if (isAdmin) refreshProfileRequestCount();

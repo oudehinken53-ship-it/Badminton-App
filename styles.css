@@ -903,6 +903,13 @@ input:checked + .slider:before {
 }
 
 a.hall-chip { text-decoration: none; }
+.trainer-chip { display: inline-block; margin: 6px 0 0 6px; padding: 4px 12px; border-radius: 9999px; font-size: 0.85rem; font-weight: 800; }
+.trainer-yes { background: var(--info-blue-light); color: var(--info-blue-hover); }
+.trainer-no { background: var(--warning-amber-light); color: #92400e; }
+.trainer-signup-btn { width: 100%; margin-top: 8px; }
+.trainer-signup-btn[hidden] { display: none; }
+.trainer-report { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 0.9rem; }
+.trainer-report th, .trainer-report td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--gray-200); }
 .loading-indicator {
   position: fixed;
   left: 50%;
