@@ -1529,6 +1529,8 @@ function applyUser(me) {
   dom.adminNavTab.style.display = canSeeAdmin ? 'flex' : 'none';
   document.getElementById('profileKnowledgeBtn').hidden = !me.canKnowledge;
   document.getElementById('orgaMenuKnowledge').hidden = !me.canKnowledge;
+  // Same group as Team-Wissen: trainers, board and admins. The tournament app has its own club key for writing.
+  ['profileTournamentLink', 'orgaMenuTournament'].forEach(id => { document.getElementById(id).hidden = !me.canKnowledge; });
 }
 
 async function initUser() {
