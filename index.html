@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.workers.dev; img-src 'self' data:; base-uri 'none'; form-action 'none'">
-  <title>SV Union Lohne 1920 e.V. | Badminton</title>
+  <title>BadApp | SV Union Lohne 1920 e.V.</title>
   <meta name="description" content="Offizielle Trainings- und Anwesenheitsverwaltung der Badminton-Abteilung des SV Union Lohne 1920 e.V.">
   <link rel="stylesheet" href="styles.css">
   <link rel="manifest" href="manifest.json">
-  <meta name="apple-mobile-web-app-title" content="Badminton">
+  <meta name="apple-mobile-web-app-title" content="BadApp">
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="theme-color" content="#E1031F">
@@ -42,7 +42,7 @@
         <img src="logo.png" alt="SV Union Lohne Badminton Logo" class="club-logo">
         <div class="brand-text">
           <span class="club-name">SV Union Lohne 1920 e.V.</span>
-          <span class="club-dept">Badminton</span>
+          <span class="club-dept">BadApp</span>
         </div>
       </div>
       <span id="roleBadge" class="badge-role">Spieler</span>
@@ -81,37 +81,6 @@
       <button id="installCloseBtn" class="install-close" type="button" aria-label="Hinweis schließen">✕</button>
     </div>
   </aside>
-
-  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
-    <h2 id="settingsTitle">Einstellungen</h2>
-    <fieldset id="settingsViewGroup" class="settings-group">
-      <legend>Welche Termine möchtest du sehen?</legend>
-      <label><input type="radio" name="sessionView" value="ALL"> Alle Termine</label>
-      <label><input type="radio" name="sessionView" value="ADULT"> Nur Erwachsene</label>
-      <label><input type="radio" name="sessionView" value="YOUTH"> Nur Jugend</label>
-    </fieldset>
-    <p id="settingsRankingNote" class="settings-note" hidden></p>
-    <p class="settings-note">Termine, für die du zugesagt hast oder bei denen du als anwesend eingetragen bist, bleiben immer sichtbar.</p>
-    <fieldset id="profileBox" class="settings-group" hidden>
-      <legend>Meine Daten</legend>
-      <p class="settings-note">Eine Änderung gilt erst, wenn ein Admin sie freigegeben hat.</p>
-      <div class="profile-field"><label for="profileFirstName">Vorname</label><input id="profileFirstName" class="demo-selector" type="text" maxlength="50" autocomplete="given-name"></div>
-      <div class="profile-field"><label for="profileLastName">Nachname</label><input id="profileLastName" class="demo-selector" type="text" maxlength="50" autocomplete="family-name"></div>
-      <div class="profile-field"><label for="profileBirthDate">Geburtsdatum</label><input id="profileBirthDate" class="demo-selector" type="date" min="1900-01-01"></div>
-      <p id="profileStatus" class="settings-note" role="status"></p>
-      <button id="profileSaveBtn" class="btn btn-primary" type="button">Änderung beantragen</button>
-      <button id="profileWithdrawBtn" class="btn btn-decline" type="button" hidden>Anfrage zurückziehen</button>
-    </fieldset>
-    <fieldset id="notificationBox" class="settings-group" hidden>
-      <legend>Benachrichtigungen</legend>
-      <p id="notificationStatus" class="settings-note" role="status"></p>
-      <button id="notificationToggleBtn" class="btn btn-primary" type="button"></button>
-      <div id="notificationCategories"></div>
-    </fieldset>
-    <button id="installGearBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 8px;" hidden>App installieren</button>
-    <p class="settings-note"><a href="hilfe.html">Hilfe: Häufige Fragen, App installieren, Benachrichtigungen</a></p>
-    <button id="settingsCloseBtn" class="btn btn-primary" type="button">Schließen</button>
-  </dialog>
 
   <!-- Main Container -->
   <main class="container">
@@ -308,6 +277,43 @@
       <!-- Points, cups and level of the current year, moved here from the start page -->
       <div id="playerRankSummary" class="player-rank-summary" aria-live="polite"></div>
       <div id="profileBody" aria-live="polite"></div>
+    </section>
+
+    <!-- Settings: a page of its own, opened by the gear in the header -->
+    <section id="tab-settings" class="tab-content settings-page" aria-labelledby="settingsTitle">
+      <button id="settingsCloseBtn" class="orga-back" type="button">← Zurück</button>
+      <h2 id="settingsTitle" class="section-title">Einstellungen</h2>
+      <div class="settings-card">
+        <fieldset id="settingsViewGroup" class="settings-group">
+          <legend>Anzeige: Welche Termine möchtest du sehen?</legend>
+          <label><input type="radio" name="sessionView" value="ALL"> Alle Termine</label>
+          <label><input type="radio" name="sessionView" value="ADULT"> Nur Erwachsene</label>
+          <label><input type="radio" name="sessionView" value="YOUTH"> Nur Jugend</label>
+        </fieldset>
+        <p id="settingsRankingNote" class="settings-note" hidden></p>
+        <p class="settings-note">Termine, für die du zugesagt hast oder bei denen du als anwesend eingetragen bist, bleiben immer sichtbar.</p>
+      </div>
+      <fieldset id="profileBox" class="settings-group settings-card" hidden>
+        <legend>Meine Daten</legend>
+        <p class="settings-note">Eine Änderung gilt erst, wenn ein Admin sie freigegeben hat.</p>
+        <div class="profile-field"><label for="profileFirstName">Vorname</label><input id="profileFirstName" class="demo-selector" type="text" maxlength="50" autocomplete="given-name"></div>
+        <div class="profile-field"><label for="profileLastName">Nachname</label><input id="profileLastName" class="demo-selector" type="text" maxlength="50" autocomplete="family-name"></div>
+        <div class="profile-field"><label for="profileBirthDate">Geburtsdatum</label><input id="profileBirthDate" class="demo-selector" type="date" min="1900-01-01"></div>
+        <p id="profileStatus" class="settings-note" role="status"></p>
+        <button id="profileSaveBtn" class="btn btn-primary" type="button">Änderung beantragen</button>
+        <button id="profileWithdrawBtn" class="btn btn-decline" type="button" hidden>Anfrage zurückziehen</button>
+      </fieldset>
+      <fieldset id="notificationBox" class="settings-group settings-card" hidden>
+        <legend>Benachrichtigungen</legend>
+        <p id="notificationStatus" class="settings-note" role="status"></p>
+        <button id="notificationToggleBtn" class="btn btn-primary" type="button"></button>
+        <div id="notificationCategories"></div>
+      </fieldset>
+      <div class="settings-card">
+        <h3 class="settings-card-title">Hilfe</h3>
+        <button id="installGearBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 8px;" hidden>App installieren</button>
+        <p class="settings-note"><a href="hilfe.html">Häufige Fragen, App installieren, Benachrichtigungen</a></p>
+      </div>
     </section>
 
     <!-- Tab 4: Organizer & Admin Panel -->

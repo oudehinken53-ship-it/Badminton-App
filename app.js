@@ -200,7 +200,7 @@ const dom = {
   newAudience: document.getElementById('newAudience'),
   newGroup: document.getElementById('newGroup'),
   settingsBtn: document.getElementById('settingsBtn'),
-  settingsDialog: document.getElementById('settingsDialog'),
+  settingsPage: document.getElementById('tab-settings'),
   installBox: document.getElementById('installBox'),
   installText: document.getElementById('installText'),
   installBtn: document.getElementById('installBtn'),
@@ -1235,6 +1235,7 @@ function switchTab(tabName) {
   if (tabName === 'profile') loadProfile();
   if (tabName === 'admin') loadOrgaTab();
   if (tabName === 'knowledge') loadKnowledge();
+  if (tabName === 'settings') openSettings();
 }
 
 // Sub pages get a history entry, so that the back button of the phone stays inside the app
@@ -1251,6 +1252,11 @@ function navigate(change) {
 
 window.addEventListener('popstate', event => {
   const target = event.state || { tab: 'sessions', orgaView: 'menu', sessionId: null };
+  // Back button of the phone on the settings page with unsent data: stay when the member says so
+  if (target.tab !== 'settings' && !mayLeaveSettings()) {
+    history.pushState(navSnapshot(), '');
+    return;
+  }
   const leavesSessionPage = state.detailSessionId && !target.sessionId;
   const sameTab = target.tab === state.activeTab;
   if (!sameTab) switchTab(target.tab);
@@ -1262,6 +1268,7 @@ window.addEventListener('popstate', event => {
 
 dom.navTabs.forEach(tab => {
   tab.addEventListener('click', () => {
+    if (!mayLeaveSettings()) return;
     showOrgaView('menu');
     showSessionPage(null);
     switchTab(tab.dataset.tab);
@@ -1529,7 +1536,8 @@ function showSignedOut(message) {
 // Init User Profile
 function applyUser(me) {
   state.currentUser = me;
-  dom.userName.textContent = `${me.firstName} ${me.lastName}`;
+  // Only the first name, the header has little room. The full name is under Einstellungen.
+  dom.userName.textContent = me.firstName;
   dom.roleBadge.textContent = ROLE_LABELS[me.role] || me.role;
   // Members need no label, it would only push the name and the gear into a second row
   dom.roleBadge.hidden = me.role === 'PLAYER';
@@ -1584,17 +1592,37 @@ function renderSessionViewHint() {
 }
 
 function syncSettingsDialog() {
-  dom.settingsDialog.querySelectorAll('input[name="sessionView"]').forEach(input => {
+  dom.settingsPage.querySelectorAll('input[name="sessionView"]').forEach(input => {
     input.checked = input.value === (state.currentUser?.sessionView || 'ALL');
   });
 }
 
+// The gear opens a page of its own. It gets a history entry, so the back button of the phone leaves it.
 dom.settingsBtn.addEventListener('click', () => {
+  if (state.activeTab === 'settings') return;
+  navigate(() => {
+    showOrgaView('menu');
+    showSessionPage(null);
+    switchTab('settings');
+  });
+  window.scrollTo(0, 0);
+});
+
+function openSettings() {
   syncSettingsDialog();
-  dom.settingsDialog.showModal();
   loadProfileBox();
   loadNotificationBox();
-});
+}
+
+// Typed into "Meine Daten" but not sent: leaving asks first
+function profileIsDirty() {
+  if (dom.profileBox.hidden || !dom.profileBox.dataset.shown) return false;
+  return dom.profileBox.dataset.shown !== JSON.stringify([dom.profileFirstName.value, dom.profileLastName.value, dom.profileBirthDate.value]);
+}
+
+function mayLeaveSettings() {
+  return state.activeTab !== 'settings' || !profileIsDirty() || confirm('Deine Änderung an „Meine Daten“ ist noch nicht gesendet. Verwerfen?');
+}
 
 function germanDate(iso) {
   const [year, month, day] = iso.split('-');
@@ -1607,6 +1635,7 @@ function renderProfileBox(profile) {
   dom.profileLastName.value = shown.lastName;
   dom.profileBirthDate.value = shown.birthDate;
   dom.profileBirthDate.max = berlinToday();
+  dom.profileBox.dataset.shown = JSON.stringify([dom.profileFirstName.value, dom.profileLastName.value, dom.profileBirthDate.value]);
   dom.profileWithdrawBtn.hidden = !profile.pending;
   dom.profileSaveBtn.textContent = profile.pending ? 'Anfrage ändern' : 'Änderung beantragen';
   const decision = profile.lastDecision;
@@ -1622,7 +1651,7 @@ function renderProfileBox(profile) {
   if (state.currentUser && (state.currentUser.firstName !== profile.firstName || state.currentUser.lastName !== profile.lastName)) {
     state.currentUser.firstName = profile.firstName;
     state.currentUser.lastName = profile.lastName;
-    dom.userName.textContent = `${profile.firstName} ${profile.lastName}`;
+    dom.userName.textContent = profile.firstName;
   }
 }
 
@@ -1843,7 +1872,9 @@ dom.installCloseBtn.addEventListener('click', () => {
 });
 renderInstallHint();
 
-dom.settingsCloseBtn.addEventListener('click', () => dom.settingsDialog.close());
+dom.settingsCloseBtn.addEventListener('click', () => {
+  if (mayLeaveSettings()) history.back();
+});
 dom.settingsViewGroup.addEventListener('change', async event => {
   const view = event.target.value;
   dom.settingsViewGroup.disabled = true;
@@ -2816,7 +2847,8 @@ function showOrgaView(view) {
   });
 }
 
-document.querySelectorAll('.orga-back').forEach(btn => {
+// The settings page has its own back button, it asks first when data is not sent yet
+document.querySelectorAll('.orga-back:not(#settingsCloseBtn)').forEach(btn => {
   btn.addEventListener('click', () => history.back());
 });
 

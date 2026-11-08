@@ -1,6 +1,6 @@
 {
-  "name": "Badminton",
-  "short_name": "Badminton",
+  "name": "BadApp",
+  "short_name": "BadApp",
   "description": "Offizielle Trainings- und Anwesenheitsverwaltung der Badminton-Abteilung des SV Union Lohne 1920 e.V.",
   "start_url": "./index.html",
   "display": "standalone",

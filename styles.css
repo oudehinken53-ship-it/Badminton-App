@@ -24,8 +24,8 @@
   --color-status-info: var(--info-blue);
 
   /* Success (Erfolg, Bestätigung, Zusagen, Häkchen) */
-  --success-green: #16a34a;        /* Bestätigungs-Grün für "Zusagen" */
-  --success-green-hover: #15803d;  /* Kontrast 4.8:1 mit weißem Text */
+  --success-green: #15803d;        /* Bestätigungs-Grün für "Zusagen", 5,0:1 mit weißem Text (vorher #16a34a, nur 3,3:1) */
+  --success-green-hover: #166534;  /* 7,1:1 mit weißem Text */
   --success-green-light: #dcfce7;
   --success-green-border: #86efac;
   --color-status-success: var(--success-green);
@@ -215,6 +215,14 @@ a.orga-menu-item { display: block; text-decoration: none; color: inherit; box-si
 .profile-request-actions { display: flex; gap: 8px; margin-top: 8px; }
 .profile-request-actions .btn { flex: 1; }
 .settings-note { font-size: 0.85rem; color: var(--gray-600, #555); margin: 10px 0 14px; }
+/* Settings page: one card per area, the title inside the card */
+.settings-card { display: block; min-width: 0; background: var(--union-white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 12px 14px 4px; margin: 0 0 12px; }
+.settings-card.settings-group[hidden] { display: none; }
+.settings-page .settings-group legend, .settings-card-title { float: left; width: 100%; margin: 0 0 6px; padding: 0; font-size: 1rem; font-weight: 800; color: var(--gray-900); }
+.settings-page .settings-group legend + * { clear: both; }
+.settings-card .btn { margin-bottom: 10px; }
+.settings-page .profile-field input { min-height: 44px; }
+.settings-page .settings-note a { display: inline-flex; align-items: center; min-height: 44px; }
 .settings-dialog .btn { width: 100%; }
 .ranking-member { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
 .ranking-member-name { flex: 1 1 100%; font-weight: 600; }
@@ -1337,13 +1345,15 @@ header.app-header .brand-text { min-width: 0; }
 header.app-header .brand-wrapper { gap: 8px; min-width: 0; }
 header.app-header .club-logo { width: 38px; height: 38px; }
 header.app-header .club-name { font-size: 0.68rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-header.app-header .club-dept { font-size: 1.05rem; font-weight: 900; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header.app-header .club-dept { font-size: 1.15rem; font-weight: 900; letter-spacing: 0.01em; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 header.app-header .badge-role { font-size: 0.6rem; padding: 2px 6px; }
 header.app-header .user-bar { margin: 0; padding: 0; border: 0; flex: none; }
 header.app-header .user-info-text { display: flex; align-items: center; gap: 2px; }
 header.app-header #userName { max-width: 7.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 header.app-header #loginBox, header.app-header #personaWrap { flex: 1 1 100%; }
 header.app-header #personaWrap { margin-top: 4px; }
+/* Demo only: the person picker gets its own row instead of pushing logo and name together */
+header.app-header .user-bar:has(#personaWrap[style*="block"]) { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; }
 @media (max-width: 359px) { header.app-header #userName { max-width: 5em; } }
 
 /* The hall link keeps its small pill, a transparent border makes it a 44 px target */
