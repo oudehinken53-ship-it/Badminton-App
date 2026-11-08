@@ -1289,6 +1289,7 @@ a.hall-chip { text-decoration: none; }
 .wk-no { color: var(--gray-600); }
 .wk-off { color: var(--gray-600); font-weight: 700; }
 .wk-warn { color: #92400e; font-weight: 700; white-space: nowrap; }
+.wk-group { color: var(--gray-900); font-weight: 800; white-space: nowrap; }
 .wk-struck { text-decoration: line-through; color: var(--gray-500, #64748b); }
 .wk-closed { background: var(--gray-100); }
 

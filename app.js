@@ -97,7 +97,7 @@ const mockDb = {
     { templateId: 'tpl-mo', weekdayIso: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30', active: true, audience: 'ADULT', trainerPlayerId: 'p-orga' },
     { templateId: 'tpl-di', weekdayIso: 2, venue: 'MZH', startLocal: '17:30', endLocal: '20:00', active: true, audience: 'ADULT', trainerPlayerId: '' },
     { templateId: 'tpl-do', weekdayIso: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00', active: true, audience: 'ADULT', trainerPlayerId: '' },
-    { templateId: 'tpl-fr', weekdayIso: 5, venue: 'MZH', startLocal: '17:00', endLocal: '18:30', active: true, audience: 'YOUTH', trainerPlayerId: 'p-orga' }
+    { templateId: 'tpl-fr', weekdayIso: 5, venue: 'MZH', startLocal: '17:00', endLocal: '18:30', active: true, audience: 'YOUTH', trainerPlayerId: 'p-orga', groupName: 'Basis' }
   ],
   venues: ['PARK', 'MZH'],
   preferences: {
@@ -198,6 +198,7 @@ const dom = {
   newVenue: document.getElementById('newVenue'),
   createSessionBtn: document.getElementById('createSessionBtn'),
   newAudience: document.getElementById('newAudience'),
+  newGroup: document.getElementById('newGroup'),
   settingsBtn: document.getElementById('settingsBtn'),
   settingsDialog: document.getElementById('settingsDialog'),
   installBox: document.getElementById('installBox'),
@@ -241,6 +242,7 @@ const dom = {
   templateVenue: document.getElementById('templateVenue'),
   templateTrainer: document.getElementById('templateTrainer'),
   templateAudience: document.getElementById('templateAudience'),
+  templateGroup: document.getElementById('templateGroup'),
   templateActive: document.getElementById('templateActive'),
   templateApply: document.getElementById('templateApply'),
   templateApplyWrap: document.getElementById('templateApplyWrap'),
@@ -548,7 +550,7 @@ function buildDemoSessions() {
     { templateId: 'tpl-mo', weekday: 1, venue: 'PARK', startLocal: '19:30', endLocal: '22:30' },
     { templateId: 'tpl-di', weekday: 2, venue: 'MZH', startLocal: '17:30', endLocal: '20:00' },
     { templateId: 'tpl-do', weekday: 4, venue: 'MZH', startLocal: '20:00', endLocal: '22:00' },
-    { templateId: 'tpl-fr', weekday: 5, venue: 'MZH', startLocal: '17:00', endLocal: '18:30', audience: 'YOUTH' }
+    { templateId: 'tpl-fr', weekday: 5, venue: 'MZH', startLocal: '17:00', endLocal: '18:30', audience: 'YOUTH', groupName: 'Basis' }
   ];
   // Who usually comes: invented pattern, one line per synthetic member
   const habits = {
@@ -568,6 +570,7 @@ function buildDemoSessions() {
         sessionId: `ses-${dateLocal}-${t.templateId}`,
         templateId: t.templateId,
         audience: t.audience || 'ADULT',
+        groupName: t.groupName || '',
         dateLocal,
         venue: t.venue,
         startLocal: t.startLocal,
@@ -936,6 +939,7 @@ async function runMockApi(action, data) {
           guestCount: (s.guests || []).length,
           audience: s.audience || 'ADULT',
           trainerName: s.trainerName || '',
+          groupName: s.groupName || '',
           myRegistration: myReg,
           attendance: demoAttendanceInfo(s, user.playerId)
         };
@@ -1175,7 +1179,7 @@ async function runMockApi(action, data) {
         if (applyToExisting) {
           mockDb.sessions.filter(s => s.templateId === templateId && s.status === 'OPEN').forEach(s => {
             const trainer = Object.values(mockDb.users).find(u => u.playerId === data.trainerPlayerId);
-            Object.assign(s, { venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, audience: data.audience, trainerName: trainer ? trainer.firstName + ' ' + trainer.lastName : '' });
+            Object.assign(s, { venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, audience: data.audience, groupName: data.groupName || '', trainerName: trainer ? trainer.firstName + ' ' + trainer.lastName : '' });
             updatedSessions++;
           });
         }
@@ -1190,7 +1194,7 @@ async function runMockApi(action, data) {
       if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
       if (!data.dateLocal || !data.venue || !data.startLocal || !data.endLocal || data.endLocal <= data.startLocal) throw apiError('INVALID_SESSION_DATA');
       const sessionId = 'ses-demo-' + mockDb.sessions.length;
-      mockDb.sessions.push({ sessionId, templateId: '', audience: data.audience || 'ADULT', dateLocal: data.dateLocal, venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, status: 'OPEN', confirmedCount: 0, registrations: {}, attendance: {}, attendanceMeta: {}, audit: [], guests: [], countsForRanking: data.countsForRanking !== false });
+      mockDb.sessions.push({ sessionId, templateId: '', audience: data.audience || 'ADULT', groupName: (data.groupName || '').trim(), dateLocal: data.dateLocal, venue: data.venue, startLocal: data.startLocal, endLocal: data.endLocal, status: 'OPEN', confirmedCount: 0, registrations: {}, attendance: {}, attendanceMeta: {}, audit: [], guests: [], countsForRanking: data.countsForRanking !== false });
       mockDb.sessions.sort((a, b) => a.dateLocal.localeCompare(b.dateLocal));
       return { sessionId };
     }
@@ -1296,6 +1300,11 @@ function showSessionPage(sessionId) {
 
 const HALLS_URL = 'https://www.wietmarschen.de/tourismus-freizeit/sport-und-freizeitanlagen/sporthallen-und-sportplaetze/';
 
+// The name of a training group, for instance Basis (DECISIONS 23). Empty when the session has none.
+function groupLabel(item) {
+  return item && item.groupName ? esc(item.groupName) : '';
+}
+
 function hallChipHtml(venue) {
   const hallClasses = { PARK: 'hall-park', MZH: 'hall-mzh' };
   if (!hallClasses[venue]) return `<span class="hall-chip hall-other">📍 ${esc(venue)}</span>`;
@@ -1318,6 +1327,7 @@ function trainerChipHtml(session) {
 function sessionHeadHtml(session) {
   const extras = [
     session.audience === 'YOUTH' ? '🧒 Jugend' : '',
+    groupLabel(session),
     session.trainerName ? `👤 Trainer: ${esc(session.trainerName)}` : ''
   ].filter(Boolean).join(' &bull; ');
   return `
@@ -1981,7 +1991,8 @@ function weekCard(session, size, tag) {
   card.className = `wk-card wk-${size}${session.status !== 'OPEN' ? ' wk-closed' : ''}${tag === 'NÄCHSTES TRAINING' ? ' wk-next' : ''}`;
   const time = `${esc(session.startLocal)}–${esc(session.endLocal)}`;
   if (size === 'big') {
-    const where = [session.audience === 'YOUTH' ? 'Jugend' : '', session.trainerName ? `Trainer: ${esc(session.trainerName)}` : ''].filter(Boolean).join(' · ');
+    const group = groupLabel(session);
+    const where = [session.audience === 'YOUTH' ? 'Jugend' : '', group ? `<strong class="wk-group">${group}</strong>` : '', session.trainerName ? `Trainer: ${esc(session.trainerName)}` : ''].filter(Boolean).join(' · ');
     const n = Number(session.confirmedCount) || 0;
     card.innerHTML = `
       <span class="wk-tag">${esc(tag)}</span>
@@ -1998,7 +2009,7 @@ function weekCard(session, size, tag) {
     card.innerHTML = `
       <div class="wk-l1${struck}">${esc(shortDate(session.dateLocal))} · ${time}</div>
       <div class="wk-side">${keyIconHtml(session, false)}${registrationButtonHtml(session)}</div>
-      <div class="wk-l2">${esc(session.venue)}${session.audience === 'YOUTH' ? ' · Jugend' : ''} · <strong>${esc(countText(session))}</strong> · <span class="${state.cls}">${esc(state.text)}</span>${trainerMissing}</div>
+      <div class="wk-l2">${esc(session.venue)}${session.audience === 'YOUTH' ? ' · Jugend' : ''}${groupLabel(session) ? ` · <span class="wk-group">${groupLabel(session)}</span>` : ''} · <strong>${esc(countText(session))}</strong> · <span class="${state.cls}">${esc(state.text)}</span>${trainerMissing}</div>
     `;
   }
   wireWeekCard(card, session);
@@ -2104,7 +2115,7 @@ function renderPreferences(templates, prefs) {
       item.className = 'pref-item';
       item.innerHTML = `
         <div>
-          <div class="pref-label">${esc(WEEKDAYS[t.weekdayIso])} (${esc(t.venue)})${t.audience === 'YOUTH' ? ', Jugend' : ''}</div>
+          <div class="pref-label">${esc(WEEKDAYS[t.weekdayIso])} (${esc(t.venue)})${t.audience === 'YOUTH' ? ', Jugend' : ''}${groupLabel(t) ? `, ${groupLabel(t)}` : ''}</div>
           <div class="pref-sub">${esc(t.startLocal)} – ${esc(t.endLocal)} Uhr</div>
         </div>
         <label class="switch" aria-label="${esc(WEEKDAYS[t.weekdayIso])} ${esc(t.startLocal)} automatisch vormerken">
@@ -3251,7 +3262,8 @@ async function loadTemplates() {
     state.templates.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.templateId;
-      opt.textContent = `${WEEKDAYS[t.weekdayIso]} ${t.startLocal}–${t.endLocal}, ${t.venue}${t.audience === 'YOUTH' ? ', Jugend' : ''}${t.active ? '' : ' (inaktiv)'}`;
+      // textContent, so the name needs no escaping here
+      opt.textContent = `${WEEKDAYS[t.weekdayIso]} ${t.startLocal}–${t.endLocal}, ${t.venue}${t.audience === 'YOUTH' ? ', Jugend' : ''}${t.groupName ? ', ' + t.groupName : ''}${t.active ? '' : ' (inaktiv)'}`;
       dom.templateSelect.append(opt);
     });
     const fresh = document.createElement('option');
@@ -3278,6 +3290,7 @@ function showTemplate() {
   dom.templateVenue.value = t ? t.venue : dom.templateVenue.options[0]?.value || '';
   dom.templateTrainer.value = t ? t.trainerPlayerId : '';
   dom.templateAudience.value = t ? t.audience : 'ADULT';
+  dom.templateGroup.value = t ? (t.groupName || '') : '';
   dom.templateActive.checked = t ? t.active : true;
   dom.templateApply.checked = false;
   dom.templateApplyWrap.style.display = t ? 'flex' : 'none';
@@ -3650,9 +3663,11 @@ dom.createSessionBtn.addEventListener('click', async () => {
       startLocal: dom.newStart.value,
       endLocal: dom.newEnd.value,
       countsForRanking: dom.newCounts.checked,
-      audience: dom.newAudience.value
+      audience: dom.newAudience.value,
+      groupName: dom.newGroup.value
     });
     dom.newAudience.value = 'ADULT';
+    dom.newGroup.value = '';
     dom.newDate.value = '';
     dom.newCounts.checked = true;
     dom.newStart.value = '';
@@ -3677,6 +3692,7 @@ dom.saveTemplateBtn.addEventListener('click', async () => {
       endLocal: dom.templateEnd.value,
       trainerPlayerId: dom.templateTrainer.value,
       audience: dom.templateAudience.value,
+      groupName: dom.templateGroup.value,
       active: dom.templateActive.checked,
       applyToExisting: dom.templateApply.checked
     });
