@@ -869,7 +869,10 @@ input:checked + .slider:before {
 }
 
 .orga-details summary {
-  min-height: 24px;
+  /* The whole row is the tap target, 44 px like every other control */
+  padding: 11px 0;
+  min-height: 44px;
+  box-sizing: border-box;
   font-weight: 700;
   font-size: 0.9rem;
   cursor: pointer;
@@ -922,7 +925,19 @@ a.hall-chip { text-decoration: none; }
 .trainer-chip { display: inline-block; margin: 6px 0 0 6px; padding: 4px 12px; border-radius: 9999px; font-size: 0.85rem; font-weight: 800; }
 .trainer-yes { background: var(--info-blue-light); color: var(--info-blue-hover); }
 .trainer-no { background: var(--warning-amber-light); color: #92400e; }
-.trainer-signup-btn { width: 100%; margin-top: 8px; }
+.trainer-signup-btn { width: 100%; margin-top: 8px; background: var(--union-white); color: var(--gray-900); border: 2px solid var(--gray-300); }
+/* Session page in fixed sections */
+.detail-section { margin-top: 16px; }
+.detail-section[hidden] { display: none; }
+.detail-section-title { margin: 0 0 6px; font-size: 0.8rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-600); }
+.detail-section-sub { margin: 0 0 6px; font-weight: 800; color: var(--gray-900); }
+.attendance-box h3.detail-section-title { margin: 0 0 6px; font-size: 0.8rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-600); }
+#detailMine .wk-btn { width: 100%; }
+.detail-admin { padding: 12px 14px; background: var(--gray-100); border-radius: var(--radius-md); }
+/* Attendance: red edge only while it can be entered, before the training one grey sentence */
+.attendance-box.attendance-waiting { border: 1px dashed var(--gray-300); background: transparent; }
+.attendance-waiting > :not(.detail-section-title):not(.detail-section-sub):not(#attendanceStatus) { display: none !important; }
+.attendance-box:not(.attendance-live):not(.attendance-waiting) { border-color: var(--gray-300); }
 .trainer-signup-btn[hidden] { display: none; }
 .trainer-report { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 0.9rem; }
 .trainer-report th, .trainer-report td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--gray-200); }

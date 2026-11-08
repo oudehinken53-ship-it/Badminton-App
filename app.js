@@ -143,9 +143,10 @@ const dom = {
   trainingList: document.getElementById('trainingList'),
   trainingDetail: document.getElementById('trainingDetail'),
   detailHead: document.getElementById('detailHead'),
-  detailActions: document.getElementById('detailActions'),
-  detailConfirmBtn: document.getElementById('detailConfirmBtn'),
-  detailDeclineBtn: document.getElementById('detailDeclineBtn'),
+  detailMyState: document.getElementById('detailMyState'),
+  detailRegBtn: document.getElementById('detailRegBtn'),
+  detailTrainerSection: document.getElementById('detailTrainerSection'),
+  detailTrainerText: document.getElementById('detailTrainerText'),
   detailParticipantsBox: document.getElementById('detailParticipantsBox'),
   detailParticipantsTitle: document.getElementById('detailParticipantsTitle'),
   detailParticipants: document.getElementById('detailParticipants'),
@@ -1306,7 +1307,9 @@ function showSessionPage(sessionId) {
   dom.trainingDetail.hidden = !sessionId;
   if (!sessionId) return;
   dom.detailHead.textContent = 'Lade …';
-  dom.detailActions.hidden = true;
+  dom.detailRegBtn.hidden = true;
+  dom.detailMyState.textContent = '';
+  dom.detailTrainerSection.hidden = true;
   dom.detailParticipantsBox.hidden = true;
   dom.orgaSessionTools.hidden = true;
   dom.guestBox.hidden = true;
@@ -1352,7 +1355,7 @@ function sessionHeadHtml(session) {
   return `
     <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
     <div class="session-when">${esc(session.startLocal)}–${esc(session.endLocal)} Uhr</div>
-    ${hallChipHtml(session.venue)}${keyChipHtml(session)}${trainerChipHtml(session)}
+    ${hallChipHtml(session.venue)}${keyChipHtml(session)}
     ${extras ? `<div class="session-venue">${extras}</div>` : ''}
   `;
 }
@@ -1379,13 +1382,28 @@ function drawSessionPage(detail) {
     dom.detailHead.innerHTML = sessionHeadHtml(session);
     state.sharedSession = Boolean(session.attendance);
 
-    dom.detailActions.hidden = !isOpen;
+    // The same one button as on the start page, until midnight of the training day
+    const mine = sessionStateText({ ...session, myRegistration }, true);
+    dom.detailMyState.className = `wk-state ${mine.cls}`;
+    dom.detailMyState.textContent = canChangeRegistration_(session, berlinToday()) || session.status !== 'OPEN'
+      ? mine.text : `${mine.text}. Der Termin ist vorbei.`;
+    const target = registrationTarget_(myRegistration);
+    dom.detailRegBtn.hidden = !canChangeRegistration_(session, berlinToday());
+    dom.detailRegBtn.disabled = false;
+    dom.detailRegBtn.removeAttribute('aria-busy');
+    dom.detailRegBtn.dataset.target = target;
+    dom.detailRegBtn.className = `btn wk-btn ${target === 'CONFIRMED' ? 'wk-join' : 'wk-leave'}`;
+    dom.detailRegBtn.textContent = target === 'CONFIRMED' ? 'Zusagen' : 'Abmelden';
+
+    // Trainer duty for the youth is a separate thing and does not count as taking part
     const trainerBtn = document.getElementById('detailTrainerBtn');
+    const trainerDuty = session.audience === 'YOUTH' && Array.isArray(session.trainerNames);
+    dom.detailTrainerSection.hidden = !(trainerDuty || (canManage && session.audience === 'YOUTH' && isOpen));
+    dom.detailTrainerText.textContent = (session.trainerNames && session.trainerNames.length ? `🧑‍🏫 ${session.trainerNames.join(', ')}` : '🧑‍🏫 Noch kein Trainer') +
+      '. Die Trainer-Anmeldung zählt nicht als Teilnahme.';
     trainerBtn.hidden = !(canManage && session.audience === 'YOUTH' && isOpen);
     trainerBtn.textContent = session.iAmTrainer ? 'Trainer-Anmeldung zurücknehmen' : '🧑‍🏫 Als Trainer anmelden';
     trainerBtn.dataset.active = session.iAmTrainer ? 'true' : 'false';
-    dom.detailConfirmBtn.disabled = myRegistration === 'CONFIRMED';
-    dom.detailDeclineBtn.disabled = myRegistration === 'DECLINED';
 
     // Under the old rules trainers see the same people with actions in the attendance list
     dom.detailParticipantsBox.hidden = canManage && !state.sharedSession;
@@ -1448,19 +1466,21 @@ function renderGuests(guests, isOpen) {
   dom.guestBox.hidden = !isOpen;
 }
 
-async function setMyRegistration(stateToSet, btn) {
-  btn.disabled = true;
+dom.detailRegBtn.addEventListener('click', async () => {
+  const button = dom.detailRegBtn;
+  if (button.disabled) return;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
   try {
-    const res = await callApi('setRegistration', { sessionId: state.detailSessionId, state: stateToSet });
-    showToast(`Erfolgreich gespeichert: ${res.state === 'CONFIRMED' ? 'Zusage ✓' : 'Absage ✗'}`);
+    const res = await callApi('setRegistration', { sessionId: state.detailSessionId, state: button.dataset.target });
+    showToast(res.state === 'CONFIRMED' ? 'Zugesagt ✓' : 'Abgemeldet');
     await loadSessionPage(state.detailSessionId);
   } catch (err) {
-    showToast(`Fehler: ${err.message}`);
-    btn.disabled = false;
+    showToast(err.code === 'SESSION_NOT_OPEN' ? 'Dieser Termin ist nicht mehr offen.' : `Fehler: ${err.message}`);
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
   }
-}
-
-dom.detailConfirmBtn.addEventListener('click', () => setMyRegistration('CONFIRMED', dom.detailConfirmBtn));
+});
 document.getElementById('detailTrainerBtn').addEventListener('click', async event => {
   const button = event.currentTarget;
   button.disabled = true;
@@ -1498,7 +1518,6 @@ async function loadTrainerSignups() {
   }
 }
 
-dom.detailDeclineBtn.addEventListener('click', () => setMyRegistration('DECLINED', dom.detailDeclineBtn));
 
 async function addGuest() {
   const label = dom.guestName.value.trim();
@@ -2347,6 +2366,9 @@ function renderAttendance() {
 
   dom.attendanceBox.hidden = false;
   dom.attendanceStatus.textContent = attendanceStatusText(data);
+  const waiting = data.windowState === 'NOT_YET';
+  dom.attendanceBox.classList.toggle('attendance-waiting', waiting);
+  dom.attendanceBox.classList.toggle('attendance-live', data.windowState === 'OPEN');
   dom.attendanceStand.textContent = `Stand: ${new Date(data.loadedAt).toLocaleTimeString('de-DE', { timeZone: BERLIN, hour: '2-digit', minute: '2-digit' })} Uhr`;
   dom.attendanceReasonWrap.hidden = !data.canCorrect;
   dom.attendanceAddBox.hidden = !canChange;

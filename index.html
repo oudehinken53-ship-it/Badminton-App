@@ -107,14 +107,21 @@
       <div id="trainingDetail" hidden>
         <button class="orga-back" type="button">← Zurück</button>
         <div id="detailHead"></div>
-        <div id="detailActions" class="action-buttons" hidden>
-          <button id="detailConfirmBtn" class="btn btn-confirm">✓ Zusagen</button>
-          <button id="detailDeclineBtn" class="btn btn-decline">✗ Absagen</button>
-        </div>
-        <button id="detailTrainerBtn" class="btn btn-primary trainer-signup-btn" type="button" hidden></button>
+        <!-- Fixed order (docs/ux/GESAMTEMPFEHLUNG.md, P2-B): my sign-up, trainer duty, attendance, people, management -->
+        <section id="detailMine" class="detail-section">
+          <h3 class="detail-section-title">Meine Anmeldung</h3>
+          <p id="detailMyState" class="wk-state"></p>
+          <button id="detailRegBtn" class="btn wk-btn" type="button" hidden></button>
+        </section>
+        <section id="detailTrainerSection" class="detail-section" hidden>
+          <h3 class="detail-section-title">Trainer-Einsatz</h3>
+          <p id="detailTrainerText" class="settings-note"></p>
+          <button id="detailTrainerBtn" class="btn trainer-signup-btn" type="button" hidden></button>
+        </section>
 
-        <section id="attendanceBox" class="attendance-box" hidden>
-          <h3>Wer war tatsächlich da?</h3>
+        <section id="attendanceBox" class="attendance-box detail-section" hidden>
+          <h3 class="detail-section-title">Anwesenheit</h3>
+          <p class="detail-section-sub">Wer war tatsächlich da?</p>
           <p id="attendanceStatus" role="status"></p>
           <div id="attendanceSelf" class="action-buttons">
             <button id="attendanceSelfPresent" class="btn btn-confirm" type="button">✓ Ich war da</button>
@@ -148,12 +155,26 @@
           </details>
         </section>
 
+        <section id="detailPeople" class="detail-section">
+          <h3 class="detail-section-title">Teilnehmer und Gäste</h3>
         <div id="detailParticipantsBox">
           <div id="detailParticipantsTitle" class="orga-roster-title"></div>
           <div id="detailParticipants"></div>
         </div>
+        <div id="detailGuestsTitle" class="orga-roster-title"></div>
+        <div id="detailGuests"></div>
+        <details id="guestBox" class="orga-details" hidden>
+          <summary>+ Gast anmelden</summary>
+          <p style="font-size: 0.85rem; color: var(--gray-600); margin-top: 8px;">Zum Beispiel fürs Schnuppertraining. Gäste bekommen keine Punkte.</p>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <input id="guestName" type="text" maxlength="40" autocomplete="off" aria-label="Name des Gastes" placeholder="Name" class="demo-selector" style="flex: 1; min-width: 0; padding: 10px; font-size: 0.9rem;">
+            <button id="guestAddBtn" class="btn btn-confirm" style="flex: none;">Anmelden</button>
+          </div>
+        </details>
+        </section>
 
-        <div id="orgaSessionTools" hidden>
+        <section id="orgaSessionTools" class="detail-section detail-admin" hidden>
+          <h3 class="detail-section-title">Verwaltung</h3>
         <p id="orgaSessionHint" style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 12px;"></p>
         <div id="orgaRosterContainer" aria-live="polite"></div>
 
@@ -194,18 +215,7 @@
           <input id="cancelReason" type="text" maxlength="200" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;" placeholder="z. B. Halle gesperrt">
           <button id="cancelSessionBtn" class="btn btn-decline" style="width: 100%; margin-top: 8px;">✗ Termin absagen</button>
         </details>
-        </div>
-
-        <div id="detailGuestsTitle" class="orga-roster-title"></div>
-        <div id="detailGuests"></div>
-        <details id="guestBox" class="orga-details" hidden>
-          <summary>+ Gast anmelden</summary>
-          <p style="font-size: 0.85rem; color: var(--gray-600); margin-top: 8px;">Zum Beispiel fürs Schnuppertraining. Gäste bekommen keine Punkte.</p>
-          <div style="display: flex; gap: 8px; margin-top: 8px;">
-            <input id="guestName" type="text" maxlength="40" autocomplete="off" aria-label="Name des Gastes" placeholder="Name" class="demo-selector" style="flex: 1; min-width: 0; padding: 10px; font-size: 0.9rem;">
-            <button id="guestAddBtn" class="btn btn-confirm" style="flex: none;">Anmelden</button>
-          </div>
-        </details>
+        </section>
       </div>
     </section>
 
