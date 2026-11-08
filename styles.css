@@ -1227,6 +1227,22 @@ a.hall-chip { text-decoration: none; }
   cursor: pointer;
 }
 
+/* The competitions as one slim switch in a row */
+#rankingTabs { flex-wrap: nowrap; gap: 0; border: 1px solid var(--gray-300); border-radius: 10px; overflow: hidden; }
+#rankingTabs button { flex: 1 1 0; min-width: 0; border: 0; border-radius: 0; border-left: 1px solid var(--gray-300); font-size: 0.85rem; padding: 6px 4px; }
+#rankingTabs button:first-child { border-left: 0; }
+#rankingTabs button[hidden] { display: none; }
+#rankingTabs button[hidden] + button { border-left: 0; }
+/* Own place first, as a card */
+.ranking-me:not(:empty) { margin: 4px 0 12px; padding: 12px 14px; font-size: 1.05rem; font-weight: 900; color: var(--gray-900); background: var(--union-red-subtle); border: 1px solid var(--union-red-light); border-radius: var(--radius-md); }
+.ranking-archive-link { display: block; width: 100%; min-height: 44px; margin-top: 8px; background: none; border: 0; font: inherit; font-weight: 800; color: var(--union-red-dark); text-align: left; cursor: pointer; }
+.ranking-archive-link.active { text-decoration: underline; }
+.ranking-archive-link[hidden] { display: none; }
+/* Profile: open badges folded, tools for the club at the end */
+.badge-open-box > summary { min-height: 44px; padding: 11px 0; box-sizing: border-box; font-weight: 800; cursor: pointer; color: var(--gray-600); }
+.profile-club-tools { margin-top: 16px; }
+.profile-club-tools:not(:has(.orga-menu-item:not([hidden]))) { display: none; }
+
 .ranking-tabs button.active {
   color: var(--union-white);
   background: var(--union-red);

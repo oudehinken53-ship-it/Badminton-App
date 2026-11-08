@@ -2245,7 +2245,7 @@ async function loadLeaderboard() {
       state.myRankingGroup = rankings.myRankingGroup;
     }
 
-    dom.rankingTabs.querySelectorAll('button').forEach(btn => {
+    document.querySelectorAll('#tab-leaderboard [data-board]').forEach(btn => {
       btn.hidden = btn.dataset.board === 'LEGACY' ? active : (!active && btn.dataset.board !== 'ARCHIVE');
     });
     dom.rankingTabs.querySelector('[data-board="LEGACY"]').textContent = `Saison ${seasonYear}`;
@@ -2708,6 +2708,16 @@ function recordsHtml(progress) {
   return lines.map(line => `<p>${line}</p>`).join('');
 }
 
+// Earned badges first. The open ones are folded away, so they do not push the records down.
+function badgeSectionsHtml(badges) {
+  const earned = badges.filter(b => b.earned);
+  const open = badges.filter(b => !b.earned);
+  return `
+    ${earned.length ? `<div class="badge-list">${badgesHtml(earned)}</div>` : '<p class="profile-note">Noch kein Abzeichen in dieser Saison.</p>'}
+    ${open.length ? `<details class="badge-open-box"><summary>Noch offen (${open.length})</summary><div class="badge-list">${badgesHtml(open)}</div></details>` : ''}
+  `;
+}
+
 function badgesHtml(badges) {
   return badges.map(badge => `
     <div class="badge-item ${badge.earned ? 'badge-earned' : 'badge-open'}">
@@ -2745,9 +2755,9 @@ function renderProfile(progress) {
   const isCurrent = progress.seasonYear === thisYear;
   dom.profileBody.innerHTML = `
     <label class="profile-season">Saison: <select id="profileSeason" class="demo-selector"></select></label>
-    <div class="pref-card profile-card">${levelBarHtml(progress.level)}<p class="profile-note">${esc(progress.annual.points)} Punkte in ${esc(progress.seasonYear)}, Level gelten pro Saison.</p></div>
+    ${isCurrent ? '' : `<div class="pref-card profile-card">${levelBarHtml(progress.level)}<p class="profile-note">${esc(progress.annual.points)} Punkte in ${esc(progress.seasonYear)}, Level gelten pro Saison.</p></div>`}
     ${isCurrent ? `<div class="pref-card profile-card"><h3>Dein ${esc(formatMonth(progress.yearMonth))}</h3>${goalHtml(progress.goal)}</div>` : ''}
-    <div class="pref-card profile-card"><h3>Abzeichen</h3><div class="badge-list">${badgesHtml(progress.badges)}</div></div>
+    <div class="pref-card profile-card"><h3>Abzeichen</h3>${badgeSectionsHtml(progress.badges)}</div>
     <div class="pref-card profile-card"><h3>Bestwerte</h3>${recordsHtml(progress)}</div>
   `;
   const select = dom.profileBody.querySelector('#profileSeason');
@@ -2765,7 +2775,7 @@ function medalFor(rank) {
 
 function setBoard(board) {
   state.rankingBoard = board;
-  dom.rankingTabs.querySelectorAll('button').forEach(btn => {
+  document.querySelectorAll('#tab-leaderboard [data-board]').forEach(btn => {
     const active = btn.dataset.board === board;
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-pressed', String(active));
@@ -2773,7 +2783,7 @@ function setBoard(board) {
   renderBoard();
 }
 
-dom.rankingTabs.querySelectorAll('button').forEach(btn => {
+document.querySelectorAll('#tab-leaderboard [data-board]').forEach(btn => {
   btn.addEventListener('click', () => {
     setBoard(btn.dataset.board);
     if (btn.dataset.board === 'ARCHIVE') loadArchive();
@@ -2843,7 +2853,7 @@ function renderStandings(rows, field, myId) {
   const mine = rows.find(item => item.playerId === me);
   const otherList = state.rankingBoard !== 'LEGACY' && state.myRankingGroup && state.rankingGroup !== state.myRankingGroup;
   dom.rankingMe.textContent = mine
-    ? `Dein Platz: ${mine.rank}, ${mine[field]} ${BOARD_LABELS[state.rankingBoard]}`
+    ? `Dein Platz: ${mine.rank} von ${rows.length} · ${mine[field]} ${BOARD_LABELS[state.rankingBoard]}`
     : otherList
       ? `Du wirst in der Rangliste „${RANKING_GROUP_LABELS[state.myRankingGroup]}" gewertet.`
       : 'Du bist hier noch nicht eingetragen.';

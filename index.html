@@ -240,10 +240,11 @@
     <!-- Tab 3: Leaderboard (Jahreswertung) -->
     <section id="tab-leaderboard" class="tab-content">
       <button class="orga-back" type="button">← Zurück</button>
-      <h2 class="section-title">
-        <span>Wertungen <span id="currentYear">2026</span></span>
-        <button id="refreshLeaderboardBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
-      </h2>
+      <div class="wk-head">
+        <h2 class="wk-title">Wertungen <span id="currentYear">2026</span></h2>
+        <button id="refreshLeaderboardBtn" class="wk-refresh" type="button" aria-label="Wertungen aktualisieren">↻</button>
+      </div>
+      <p id="rankingMe" class="ranking-me" role="status"></p>
       <div id="rankingGroupTabs" class="ranking-tabs" hidden>
         <button type="button" data-group="ADULT">Erwachsene</button>
         <button type="button" data-group="YOUTH">Jugend</button>
@@ -253,12 +254,10 @@
         <button type="button" data-board="ANNUAL">Jahrescup</button>
         <button type="button" data-board="CONSISTENCY">Konstanzpokal</button>
         <button type="button" data-board="MONTHLY">Monatscup</button>
-        <button type="button" data-board="ARCHIVE">Historische Wertungen</button>
       </div>
       <label id="rankingMonthWrap" class="ranking-select" hidden>Monat: <select id="rankingMonth" class="demo-selector"></select></label>
       <label id="rankingSeasonWrap" class="ranking-select" hidden>Saison: <select id="rankingSeason" class="demo-selector"></select></label>
       <p id="rankingHint" class="ranking-hint"></p>
-      <p id="rankingMe" class="ranking-me" role="status"></p>
       <table class="leaderboard-table" aria-label="Rangliste">
         <thead>
           <tr>
@@ -271,6 +270,7 @@
           <!-- Rendered by app.js -->
         </tbody>
       </table>
+      <button type="button" class="ranking-archive-link" data-board="ARCHIVE">Historische Wertungen ›</button>
     </section>
 
     <!-- Tab: Profile -->
@@ -281,12 +281,16 @@
     </section>
 
     <section id="tab-profile" class="tab-content">
-      <button id="profileKnowledgeBtn" class="orga-menu-item" type="button" hidden>📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
-      <a id="profileTournamentLink" class="orga-menu-item" href="https://union-turnier.oudehinken53-3cc.workers.dev" target="_blank" rel="noopener noreferrer" hidden>🏆 Turniermanager<span>Turniere planen und Ergebnisse eintragen</span></a>
       <h2 class="section-title">Mein Fortschritt</h2>
       <!-- Points, cups and level of the current year, moved here from the start page -->
       <div id="playerRankSummary" class="player-rank-summary" aria-live="polite"></div>
       <div id="profileBody" aria-live="polite"></div>
+      <!-- Tools for trainers and the board, not mixed into the own progress. Hides when nothing in it is shown. -->
+      <div id="profileClubTools" class="profile-club-tools">
+        <h3 class="orga-group-title">Für den Verein</h3>
+        <button id="profileKnowledgeBtn" class="orga-menu-item" type="button" hidden>📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
+        <a id="profileTournamentLink" class="orga-menu-item" href="https://union-turnier.oudehinken53-3cc.workers.dev" target="_blank" rel="noopener noreferrer" hidden>🏆 Turniermanager<span>Turniere planen und Ergebnisse eintragen</span></a>
+      </div>
     </section>
 
     <!-- Settings: a page of its own, opened by the gear in the header -->
