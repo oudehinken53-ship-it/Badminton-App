@@ -201,6 +201,9 @@ const dom = {
   newGroup: document.getElementById('newGroup'),
   settingsBtn: document.getElementById('settingsBtn'),
   settingsPage: document.getElementById('tab-settings'),
+  emailBox: document.getElementById('emailBox'),
+  profileEmail: document.getElementById('profileEmail'),
+  emailSaveBtn: document.getElementById('emailSaveBtn'),
   installBox: document.getElementById('installBox'),
   installText: document.getElementById('installText'),
   installBtn: document.getElementById('installBtn'),
@@ -333,6 +336,7 @@ const ERROR_MESSAGES = {
   INVALID_RANKING_DATA: 'Bitte prüfe den Jahrgang und die Rangliste.',
   BUSY: 'Gerade speichern sehr viele gleichzeitig. Bitte versuch es gleich noch einmal, nichts wurde gespeichert.',
   INVALID_PROFILE_DATA: 'Bitte prüfe Name und Geburtsdatum. Namen beginnen mit einem Buchstaben.',
+  INVALID_EMAIL: 'Bitte gib eine gültige E-Mail-Adresse ein, zum Beispiel name@beispiel.de.',
   PROFILE_NO_CHANGE: 'Du hast nichts geändert.',
   PROFILE_REQUEST_CLOSED: 'Diese Anfrage ist schon erledigt.',
   PROFILE_REQUEST_NOT_FOUND: 'Diese Anfrage gibt es nicht mehr.',
@@ -752,6 +756,7 @@ function demoProfile(u) {
     firstName: u.firstName,
     lastName: u.lastName,
     birthDate: u.birthDate || '',
+    email: u.email || '',
     pending: pending ? { ...pending.requested, createdAt: pending.createdAt } : null,
     lastDecision: u.demoLastDecision || null
   };
@@ -809,7 +814,7 @@ async function runMockApi(action, data) {
     case 'listRankingMembers': {
       if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
       const seasonYear = berlinToday().substring(0, 4);
-      return { seasonYear, players: Object.values(mockDb.users).filter(u => !u.demoInactive).map(u => demoRankingMember(u, seasonYear)).sort((a, b) => a.lastName.localeCompare(b.lastName)) };
+      return { seasonYear, players: Object.values(mockDb.users).filter(u => !u.demoInactive).map(u => ({ ...demoRankingMember(u, seasonYear), ...(user.role === 'ADMIN' ? { email: u.email || '' } : {}) })).sort((a, b) => a.lastName.localeCompare(b.lastName)) };
     }
 
     case 'setPlayerRanking': {
@@ -848,6 +853,13 @@ async function runMockApi(action, data) {
     case 'requestProfileChange':
       demoAskProfileChange(user, data, user.playerId);
       return demoProfile(user);
+
+    case 'setEmail': {
+      const email = String(data.email || '').trim();
+      if (email && !/^[^\s@<>"'=,;]+@[^\s@<>"'=,;]+\.[^\s@<>"'=,;.]{2,}$/.test(email)) throw apiError('INVALID_EMAIL');
+      user.email = email;
+      return demoProfile(user);
+    }
 
     case 'withdrawProfileRequest':
       if (!mockDb.profileRequests.some(r => r.playerId === user.playerId)) throw apiError('PROFILE_REQUEST_CLOSED');
@@ -1616,6 +1628,7 @@ function openSettings() {
 
 // Typed into "Meine Daten" but not sent: leaving asks first
 function profileIsDirty() {
+  if (!dom.emailBox.hidden && dom.profileEmail.value.trim() !== (dom.emailBox.dataset.shown || '')) return true;
   if (dom.profileBox.hidden || !dom.profileBox.dataset.shown) return false;
   return dom.profileBox.dataset.shown !== JSON.stringify([dom.profileFirstName.value, dom.profileLastName.value, dom.profileBirthDate.value]);
 }
@@ -1636,6 +1649,10 @@ function renderProfileBox(profile) {
   dom.profileBirthDate.value = shown.birthDate;
   dom.profileBirthDate.max = berlinToday();
   dom.profileBox.dataset.shown = JSON.stringify([dom.profileFirstName.value, dom.profileLastName.value, dom.profileBirthDate.value]);
+  // An older backend sends no address, then the field stays away
+  dom.emailBox.hidden = typeof profile.email !== 'string';
+  dom.profileEmail.value = profile.email || '';
+  dom.emailBox.dataset.shown = dom.profileEmail.value;
   dom.profileWithdrawBtn.hidden = !profile.pending;
   dom.profileSaveBtn.textContent = profile.pending ? 'Anfrage ändern' : 'Änderung beantragen';
   const decision = profile.lastDecision;
@@ -1871,6 +1888,21 @@ dom.installCloseBtn.addEventListener('click', () => {
   dom.installBox.hidden = true;
 });
 renderInstallHint();
+
+dom.emailSaveBtn.addEventListener('click', async () => {
+  if (dom.emailSaveBtn.disabled) return;
+  dom.emailSaveBtn.disabled = true;
+  try {
+    const profile = await callApi('setEmail', { email: dom.profileEmail.value.trim() });
+    dom.profileEmail.value = profile.email || '';
+    dom.emailBox.dataset.shown = dom.profileEmail.value;
+    showToast(profile.email ? 'E-Mail gespeichert.' : 'E-Mail entfernt.');
+  } catch (err) {
+    showToast(`Fehler: ${err.message}`, 6000);
+  } finally {
+    dom.emailSaveBtn.disabled = false;
+  }
+});
 
 dom.settingsCloseBtn.addEventListener('click', () => {
   if (mayLeaveSettings()) history.back();
@@ -3023,6 +3055,13 @@ function profileMemberForm(member, isAdmin) {
   const birth = field('Geburtsdatum', 'date', member.birthDate, 0);
   birth.min = '1900-01-01';
   birth.max = berlinToday();
+  // Only admins get the address. The member sets it alone, so it is shown here but not editable.
+  if (typeof member.email === 'string') {
+    const mail = document.createElement('p');
+    mail.className = 'settings-note member-email';
+    mail.textContent = member.email ? `E-Mail: ${member.email}` : 'Keine E-Mail hinterlegt.';
+    form.append(mail);
+  }
   const save = document.createElement('button');
   save.type = 'button';
   save.className = 'btn btn-primary';

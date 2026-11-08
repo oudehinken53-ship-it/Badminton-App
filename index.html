@@ -303,6 +303,12 @@
         <button id="profileSaveBtn" class="btn btn-primary" type="button">Änderung beantragen</button>
         <button id="profileWithdrawBtn" class="btn btn-decline" type="button" hidden>Anfrage zurückziehen</button>
       </fieldset>
+      <fieldset id="emailBox" class="settings-group settings-card" hidden>
+        <legend>E-Mail</legend>
+        <p class="settings-note">Freiwillig. Nur du und die Admins sehen sie. Der Verein nutzt sie nur, um dich zu erreichen. Sie gilt sofort, ohne Freigabe.</p>
+        <div class="profile-field"><label for="profileEmail">E-Mail-Adresse</label><input id="profileEmail" class="demo-selector" type="email" maxlength="100" autocomplete="email" inputmode="email" spellcheck="false"></div>
+        <button id="emailSaveBtn" class="btn btn-primary" type="button">E-Mail speichern</button>
+      </fieldset>
       <fieldset id="notificationBox" class="settings-group settings-card" hidden>
         <legend>Benachrichtigungen</legend>
         <p id="notificationStatus" class="settings-note" role="status"></p>
