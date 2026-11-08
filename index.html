@@ -309,19 +309,18 @@
       </div>
       <fieldset id="profileBox" class="settings-group settings-card" hidden>
         <legend>Meine Daten</legend>
-        <p class="settings-note">Eine Änderung gilt erst, wenn ein Admin sie freigegeben hat.</p>
+        <p class="settings-note">Eine Änderung an Name oder Geburtsdatum gilt erst, wenn ein Admin sie freigegeben hat.</p>
         <div class="profile-field"><label for="profileFirstName">Vorname</label><input id="profileFirstName" class="demo-selector" type="text" maxlength="50" autocomplete="given-name"></div>
         <div class="profile-field"><label for="profileLastName">Nachname</label><input id="profileLastName" class="demo-selector" type="text" maxlength="50" autocomplete="family-name"></div>
         <div class="profile-field"><label for="profileBirthDate">Geburtsdatum</label><input id="profileBirthDate" class="demo-selector" type="date" min="1900-01-01"></div>
         <p id="profileStatus" class="settings-note" role="status"></p>
         <button id="profileSaveBtn" class="btn btn-primary" type="button">Änderung beantragen</button>
         <button id="profileWithdrawBtn" class="btn btn-decline" type="button" hidden>Anfrage zurückziehen</button>
-      </fieldset>
-      <fieldset id="emailBox" class="settings-group settings-card" hidden>
-        <legend>E-Mail</legend>
-        <p class="settings-note">Freiwillig. Nur du und die Admins sehen sie. Der Verein nutzt sie nur, um dich zu erreichen. Sie gilt sofort, ohne Freigabe.</p>
-        <div class="profile-field"><label for="profileEmail">E-Mail-Adresse</label><input id="profileEmail" class="demo-selector" type="email" maxlength="100" autocomplete="email" inputmode="email" spellcheck="false"></div>
-        <button id="emailSaveBtn" class="btn btn-primary" type="button">E-Mail speichern</button>
+        <div id="emailBox" class="profile-email" hidden>
+          <div class="profile-field"><label for="profileEmail">E-Mail-Adresse (freiwillig)</label><input id="profileEmail" class="demo-selector" type="email" maxlength="100" autocomplete="email" inputmode="email" spellcheck="false"></div>
+          <p class="settings-note">Nur du und die Admins sehen sie. Der Verein nutzt sie nur, um dich zu erreichen. Sie gilt sofort, ohne Freigabe.</p>
+          <button id="emailSaveBtn" class="btn btn-primary" type="button">E-Mail speichern</button>
+        </div>
       </fieldset>
       <fieldset id="notificationBox" class="settings-group settings-card" hidden>
         <legend>Benachrichtigungen</legend>

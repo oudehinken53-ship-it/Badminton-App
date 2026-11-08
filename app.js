@@ -1334,12 +1334,6 @@ function hallChipHtml(venue) {
 }
 
 // Only a forecast from the confirmations. No state from the backend means nothing to show, for instance a canceled session.
-function keyChipHtml(session) {
-  if (session.keyCovered === true) return '<span class="key-chip key-yes">🔑 Schlüssel dabei</span>';
-  if (session.keyCovered === false) return '<span class="key-chip key-no">🔑 Kein Schlüssel dabei</span>';
-  return '';
-}
-
 function trainerChipHtml(session) {
   if (session.trainerNames && session.trainerNames.length > 0) return `<span class="trainer-chip trainer-yes">🧑‍🏫 ${esc(session.trainerNames.join(', '))}</span>`;
   if (session.needsTrainer === true) return '<span class="trainer-chip trainer-no">🧑‍🏫 Noch kein Trainer</span>';
@@ -1355,7 +1349,7 @@ function sessionHeadHtml(session) {
   return `
     <div class="session-date">${esc(formatDate(session.dateLocal))}</div>
     <div class="session-when">${esc(session.startLocal)}–${esc(session.endLocal)} Uhr</div>
-    ${hallChipHtml(session.venue)}${keyChipHtml(session)}
+    ${hallChipHtml(session.venue)}${keyIconHtml(session)}
     ${extras ? `<div class="session-venue">${extras}</div>` : ''}
   `;
 }
@@ -2040,10 +2034,11 @@ function countText(session) {
 }
 
 // Two states from the server, nothing when it sends none (past, canceled, older backend). Never red by guess.
-function keyIconHtml(session, withText) {
+// Only the symbol, green or red and struck through (wish of the operator), the words are for screen readers.
+function keyIconHtml(session) {
   if (session.keyCovered !== true && session.keyCovered !== false) return '';
   const label = session.keyCovered ? 'Schlüssel dabei' : 'Kein Schlüssel dabei';
-  return `<span class="wk-key ${session.keyCovered ? 'wk-key-yes' : 'wk-key-no'}"><span class="wk-key-icon" role="img" aria-label="${label}">🔑</span>${withText ? `<span class="wk-key-text" aria-hidden="true">${label}</span>` : ''}</span>`;
+  return `<span class="wk-key ${session.keyCovered ? 'wk-key-yes' : 'wk-key-no'}" title="${label}"><span class="wk-key-icon" role="img" aria-label="${label}">🔑</span></span>`;
 }
 
 function sessionStateText(session, long) {
@@ -2071,7 +2066,8 @@ function weekCard(session, size, tag) {
   const state = sessionStateText(session, size === 'big');
   const struck = session.status === 'CANCELED' ? ' wk-struck' : '';
   card.className = `wk-card wk-${size}${session.status !== 'OPEN' ? ' wk-closed' : ''}${tag === 'NÄCHSTES TRAINING' ? ' wk-next' : ''}`;
-  const time = `${esc(session.startLocal)}–${esc(session.endLocal)}`;
+  // The start is enough on the cards, the session page shows the end too
+  const time = `ab ${esc(session.startLocal)}`;
   if (size === 'big') {
     const group = groupLabel(session);
     const where = [session.audience === 'YOUTH' ? 'Jugend' : '', group ? `<strong class="wk-group">${group}</strong>` : '', session.trainerName ? `Trainer: ${esc(session.trainerName)}` : ''].filter(Boolean).join(' · ');
@@ -2080,7 +2076,7 @@ function weekCard(session, size, tag) {
       <span class="wk-tag">${esc(tag)}</span>
       <div class="wk-when${struck}">${esc(shortDate(session.dateLocal))} · ${time}</div>
       <div class="wk-where">${hallChipHtml(session.venue)}${where ? `<span>${where}</span>` : ''}</div>
-      <div class="wk-count-row"><span class="wk-count"><strong>${n}</strong> ${n === 1 ? 'Zusage' : 'Zusagen'}${esc(guestText(session))}</span>${keyIconHtml(session, true)}</div>
+      <div class="wk-count-row"><span class="wk-count"><strong>${n}</strong> ${n === 1 ? 'Zusage' : 'Zusagen'}${esc(guestText(session))}</span>${keyIconHtml(session)}</div>
       ${trainerChipHtml(session) ? `<div class="wk-trainer">${trainerChipHtml(session)}</div>` : ''}
       <div class="wk-state ${state.cls}">${esc(state.text)}</div>
       ${registrationButtonHtml(session)}
@@ -2090,7 +2086,7 @@ function weekCard(session, size, tag) {
     const trainerMissing = session.needsTrainer === true ? ' · <span class="wk-warn">kein Trainer</span>' : '';
     card.innerHTML = `
       <div class="wk-l1${struck}">${esc(shortDate(session.dateLocal))} · ${time}</div>
-      <div class="wk-side">${keyIconHtml(session, false)}${registrationButtonHtml(session)}</div>
+      <div class="wk-side">${keyIconHtml(session)}${registrationButtonHtml(session)}</div>
       <div class="wk-l2">${esc(session.venue)}${session.audience === 'YOUTH' ? ' · Jugend' : ''}${groupLabel(session) ? ` · <span class="wk-group">${groupLabel(session)}</span>` : ''} · <strong>${esc(countText(session))}</strong> · <span class="${state.cls}">${esc(state.text)}</span>${trainerMissing}</div>
     `;
   }

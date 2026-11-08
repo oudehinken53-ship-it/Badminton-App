@@ -221,6 +221,8 @@ a.orga-menu-item { display: block; text-decoration: none; color: inherit; box-si
 .settings-page .settings-group legend, .settings-card-title { float: left; width: 100%; margin: 0 0 6px; padding: 0; font-size: 1rem; font-weight: 800; color: var(--gray-900); }
 .settings-page .settings-group legend + * { clear: both; }
 .settings-card .btn { margin-bottom: 10px; }
+.profile-email { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--gray-200); }
+.profile-email[hidden] { display: none; }
 .settings-page .profile-field input { min-height: 44px; }
 .settings-page .settings-note a { display: inline-flex; align-items: center; min-height: 44px; }
 .settings-dialog .btn { width: 100%; }
