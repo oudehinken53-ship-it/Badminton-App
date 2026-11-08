@@ -838,10 +838,6 @@ input:checked + .slider:before {
   color: var(--gray-600);
 }
 
-/* The next session is a quick way in, not a warning: neutral, like the other entries, with a darker edge */
-.orga-menu-next {
-  border: 2px solid var(--gray-300);
-}
 
 /* Orga menu in groups, as slim rows with an arrow */
 .orga-group-title { margin: 16px 0 6px; font-size: 0.8rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-600); }
@@ -1242,8 +1238,6 @@ a.hall-chip { text-decoration: none; }
 .ranking-archive-link[hidden] { display: none; }
 /* Profile: open badges folded, tools for the club at the end */
 .badge-open-box > summary { min-height: 44px; padding: 11px 0; box-sizing: border-box; font-weight: 800; cursor: pointer; color: var(--gray-600); }
-.profile-club-tools { margin-top: 16px; }
-.profile-club-tools:not(:has(.orga-menu-item:not([hidden]))) { display: none; }
 
 .ranking-tabs button.active {
   color: var(--union-white);
@@ -1321,6 +1315,15 @@ a.hall-chip { text-decoration: none; }
 .wk-empty { color: var(--gray-600); text-align: center; padding: 24px; }
 
 .wk-card { background: var(--union-white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: 8px; cursor: pointer; }
+/* Variant B: own sign-up as a green edge on the left, grey when not signed up */
+.wk-card { position: relative; overflow: hidden; }
+.wk-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--gray-300); }
+.wk-card.wk-in::before { background: var(--success-green); }
+.wk-card.wk-closed::before { background: transparent; }
+.wk-compact { padding-left: 16px; }
+.wk-big { padding-left: 18px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.wk-big .wk-state:empty, .wk-big .wk-state:has(> .sr-only:only-child) { margin: 0; height: 0; }
 .wk-card:focus-visible, .wk-past:focus-visible { outline: 3px solid var(--info-blue); outline-offset: 2px; }
 .wk-big { border: 2px solid var(--union-red); padding: 12px 14px 14px; box-shadow: var(--shadow); }
 .wk-big.wk-next { border-color: var(--gray-900); }

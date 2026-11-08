@@ -137,7 +137,6 @@ const dom = {
   refreshLeaderboardBtn: document.getElementById('refreshLeaderboardBtn'),
   leaderboardBody: document.getElementById('leaderboardBody'),
   adminNavTab: document.getElementById('adminNavTab'),
-  orgaNextBtn: document.getElementById('orgaNextBtn'),
   orgaMenuAccess: document.getElementById('orgaMenuAccess'),
   orgaMenuSystem: document.getElementById('orgaMenuSystem'),
   trainingList: document.getElementById('trainingList'),
@@ -1573,13 +1572,14 @@ function applyUser(me) {
   if (me.rankingGroup) dom.settingsRankingNote.textContent = `Du wirst in der Rangliste „${RANKING_GROUP_LABELS[me.rankingGroup]}" gewertet. Das legt dein Trainer oder Admin fest.`;
   state.rankingGroup = null;
 
-  // Show Orga/Admin tab if role permits
-  const canSeeAdmin = me.role === 'ORGANIZER' || me.role === 'ADMIN';
-  dom.adminNavTab.style.display = canSeeAdmin ? 'flex' : 'none';
-  document.getElementById('profileKnowledgeBtn').hidden = !me.canKnowledge;
+  // The Orga tab: trainers and admins see all of it, the board only the group "Verein" (Team-Wissen,
+  // Turniermanager, Beitrag). The server checks every action itself, this only decides what is offered.
+  const canManage = me.role === 'ORGANIZER' || me.role === 'ADMIN';
+  dom.adminNavTab.style.display = canManage || me.canKnowledge ? 'flex' : 'none';
+  document.querySelectorAll('.orga-manager-only').forEach(el => { el.hidden = !canManage; });
   document.getElementById('orgaMenuKnowledge').hidden = !me.canKnowledge;
   // Same group as Team-Wissen: trainers, board and admins. The tournament app has its own club key for writing.
-  ['profileTournamentLink', 'orgaMenuTournament'].forEach(id => { document.getElementById(id).hidden = !me.canKnowledge; });
+  ['orgaMenuTournament'].forEach(id => { document.getElementById(id).hidden = !me.canKnowledge; });
 }
 
 async function initUser() {
@@ -2041,6 +2041,11 @@ function keyIconHtml(session) {
   return `<span class="wk-key ${session.keyCovered ? 'wk-key-yes' : 'wk-key-no'}" title="${label}"><span class="wk-key-icon" role="img" aria-label="${label}">🔑</span></span>`;
 }
 
+// Variant B (wish of the operator): on the cards the sign-up shows as a green edge, the words only for screen readers
+function signedUpText(session) {
+  return session.myRegistration === 'CONFIRMED' ? 'Du bist angemeldet' : 'Du bist nicht angemeldet';
+}
+
 function sessionStateText(session, long) {
   if (session.status === 'CANCELED') return { cls: 'wk-off', text: 'Abgesagt' };
   if (session.status === 'CLOSING') return { cls: 'wk-off', text: 'Wird abgeschlossen' };
@@ -2065,7 +2070,12 @@ function weekCard(session, size, tag) {
   const card = document.createElement('article');
   const state = sessionStateText(session, size === 'big');
   const struck = session.status === 'CANCELED' ? ' wk-struck' : '';
-  card.className = `wk-card wk-${size}${session.status !== 'OPEN' ? ' wk-closed' : ''}${tag === 'NÄCHSTES TRAINING' ? ' wk-next' : ''}`;
+  const signedUp = session.status === 'OPEN' && session.myRegistration === 'CONFIRMED';
+  card.className = `wk-card wk-${size}${session.status !== 'OPEN' ? ' wk-closed' : ''}${tag === 'NÄCHSTES TRAINING' ? ' wk-next' : ''}${signedUp ? ' wk-in' : ''}`;
+  // Closed or canceled sessions still say so in words, the own sign-up only as the edge
+  const stateHtml = session.status === 'OPEN'
+    ? `<span class="sr-only">${esc(signedUpText(session))}</span>`
+    : `<span class="${state.cls}">${esc(state.text)}</span>`;
   // The start is enough on the cards, the session page shows the end too
   const time = `ab ${esc(session.startLocal)}`;
   if (size === 'big') {
@@ -2078,7 +2088,7 @@ function weekCard(session, size, tag) {
       <div class="wk-where">${hallChipHtml(session.venue)}${where ? `<span>${where}</span>` : ''}</div>
       <div class="wk-count-row"><span class="wk-count"><strong>${n}</strong> ${n === 1 ? 'Zusage' : 'Zusagen'}${esc(guestText(session))}</span>${keyIconHtml(session)}</div>
       ${trainerChipHtml(session) ? `<div class="wk-trainer">${trainerChipHtml(session)}</div>` : ''}
-      <div class="wk-state ${state.cls}">${esc(state.text)}</div>
+      <div class="wk-state">${stateHtml}</div>
       ${registrationButtonHtml(session)}
       ${attendanceLinkHtml(session)}
     `;
@@ -2087,7 +2097,7 @@ function weekCard(session, size, tag) {
     card.innerHTML = `
       <div class="wk-l1${struck}">${esc(shortDate(session.dateLocal))} · ${time}</div>
       <div class="wk-side">${keyIconHtml(session)}${registrationButtonHtml(session)}</div>
-      <div class="wk-l2">${esc(session.venue)}${session.audience === 'YOUTH' ? ' · Jugend' : ''}${groupLabel(session) ? ` · <span class="wk-group">${groupLabel(session)}</span>` : ''} · <strong>${esc(countText(session))}</strong> · <span class="${state.cls}">${esc(state.text)}</span>${trainerMissing}</div>
+      <div class="wk-l2">${esc(session.venue)}${session.audience === 'YOUTH' ? ' · Jugend' : ''}${groupLabel(session) ? ` · <span class="wk-group">${groupLabel(session)}</span>` : ''} · <strong>${esc(countText(session))}</strong>${session.status === 'OPEN' ? stateHtml : ` · ${stateHtml}`}${trainerMissing}</div>
     `;
   }
   wireWeekCard(card, session);
@@ -3277,19 +3287,17 @@ function sessionLabel(s) {
 
 async function loadOrgaTab() {
   const isAdmin = state.currentUser?.role === 'ADMIN';
+  const canManage = isAdmin || state.currentUser?.role === 'ORGANIZER';
   dom.orgaMenuAccess.hidden = !isAdmin;
   document.getElementById('orgaMenuTrainers').hidden = !isAdmin;
   dom.orgaMenuSystem.hidden = !isAdmin;
-  dom.orgaMenuProfiles.hidden = false;
+  dom.orgaMenuProfiles.hidden = !canManage;
+  // The board only gets the group "Verein", nothing to load for that
+  if (!canManage) return;
   if (isAdmin) refreshProfileRequestCount();
 
   // Says that something is coming, the first load can take some seconds
-  if (!state.orgaSessions) {
-    dom.orgaNextBtn.hidden = false;
-    dom.orgaNextBtn.disabled = true;
-    dom.orgaNextBtn.textContent = 'Lade Termine …';
-    dom.orgaSessionList.textContent = 'Lade …';
-  }
+  if (!state.orgaSessions) dom.orgaSessionList.textContent = 'Lade …';
 
   // Trainers manage every session, whatever they chose to see on their own start page
   await Promise.all([
@@ -3297,7 +3305,6 @@ async function loadOrgaTab() {
       state.orgaSessions = sessions;
       renderOrgaMenu();
     }, { slot: 'orgaSessions' }).catch(err => {
-      dom.orgaNextBtn.hidden = true;
       dom.orgaSessionList.textContent = `Fehler: ${err.message}`;
     }),
     // The lists for the selection fields, the session page needs them
@@ -3310,16 +3317,6 @@ async function loadOrgaTab() {
 function renderOrgaMenu() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
   const sessions = state.orgaSessions || state.sessions;
-  const next = sessions.find(s => (s.status === 'OPEN' || s.status === 'CLOSING') && s.dateLocal >= today);
-  dom.orgaNextBtn.hidden = !next;
-  dom.orgaNextBtn.disabled = false;
-  if (next) {
-    dom.orgaNextBtn.replaceChildren(next.dateLocal === today ? '🏸 Heute' : '🏸 Nächster Termin');
-    const detail = document.createElement('span');
-    detail.textContent = sessionLabel(next);
-    dom.orgaNextBtn.append(detail);
-    dom.orgaNextBtn.onclick = () => openSession(next.sessionId);
-  }
 
   dom.orgaSessionList.replaceChildren();
   if (sessions.length === 0) {
@@ -4051,7 +4048,7 @@ document.getElementById('knowledgeBody').addEventListener('submit', event => {
   saveKnowledge();
 });
 
-['profileKnowledgeBtn', 'orgaMenuKnowledge'].forEach(id => {
+['orgaMenuKnowledge'].forEach(id => {
   document.getElementById(id).addEventListener('click', () => navigate(() => switchTab('knowledge')));
 });
 
