@@ -3239,14 +3239,23 @@ function autoGroupLabel(member) {
 function renderRankingMembers() {
   const needle = dom.rankingMemberSearch.value.trim().toLowerCase();
   dom.rankingMemberList.replaceChildren();
+  // Set by hand first, those are the ones somebody decided. The order inside stays by name.
+  const byHand = m => (m.rankingGroup && m.rankingGroup !== 'AUTO' ? 0 : 1);
   (state.rankingMembers || [])
     .filter(m => `${m.firstName} ${m.lastName}`.toLowerCase().includes(needle))
+    .slice().sort((a, b) => byHand(a) - byHand(b))
     .forEach(member => {
       const row = document.createElement('div');
       row.className = 'ranking-member';
       const name = document.createElement('div');
       name.className = 'ranking-member-name';
       name.textContent = `${member.firstName} ${member.lastName}`;
+      if (byHand(member) === 0) {
+        const mark = document.createElement('span');
+        mark.className = 'ranking-by-hand';
+        mark.textContent = 'von Hand';
+        name.append(' ', mark);
+      }
       const year = document.createElement('input');
       year.type = 'text';
       year.inputMode = 'numeric';
@@ -3323,11 +3332,16 @@ function renderOrgaMenu() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
   const sessions = state.orgaSessions || state.sessions;
 
+  // Coming sessions first. Past ones only while they are still open, newest first.
+  const filter = state.orgaSessionFilter || 'COMING';
+  const shown = filter === 'COMING'
+    ? sessions.filter(s => s.dateLocal >= today)
+    : sessions.filter(s => s.dateLocal < today).slice().reverse();
   dom.orgaSessionList.replaceChildren();
-  if (sessions.length === 0) {
-    dom.orgaSessionList.textContent = 'Keine Termine vorhanden.';
+  if (shown.length === 0) {
+    dom.orgaSessionList.innerHTML = `<p class="settings-note">${filter === 'COMING' ? 'Keine kommenden Termine.' : 'Kein vergangener Termin ist mehr offen.'}</p>`;
   }
-  sessions.forEach(s => {
+  shown.forEach(s => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'orga-menu-item';
@@ -3339,6 +3353,17 @@ function renderOrgaMenu() {
     dom.orgaSessionList.append(btn);
   });
 }
+
+document.querySelectorAll('#orgaSessionFilter button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.orgaSessionFilter = btn.dataset.filter;
+    document.querySelectorAll('#orgaSessionFilter button').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    renderOrgaMenu();
+  });
+});
 
 function fillSelect(select, entries) {
   const selected = select.value;
@@ -3372,6 +3397,7 @@ async function loadTemplates() {
     fresh.textContent = '+ Neuer Standardtermin';
     dom.templateSelect.append(fresh);
     if ([...dom.templateSelect.options].some(o => o.value === selected)) dom.templateSelect.value = selected;
+    renderTemplateRows();
     const venueEntries = venues.map(code => [code, code]);
     [dom.editVenue, dom.newVenue, dom.templateVenue].forEach(select => fillSelect(select, venueEntries));
     fillSelect(dom.templateTrainer, [['', 'Kein Trainer'], ...trainers.map(t => [t.playerId, t.name])]);
@@ -3381,8 +3407,37 @@ async function loadTemplates() {
   }
 }
 
+// The standard sessions as a list: one row each, and one row for a new one. The form below edits the chosen row.
+function renderTemplateRows() {
+  const box = document.getElementById('templateRows');
+  box.replaceChildren();
+  [...state.templates, null].forEach(t => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'orga-menu-item template-row';
+    const id = t ? t.templateId : '';
+    row.classList.toggle('active', dom.templateSelect.value === id);
+    row.setAttribute('aria-pressed', String(dom.templateSelect.value === id));
+    if (t) {
+      row.textContent = `${WEEKDAYS[t.weekdayIso]} ${t.startLocal}–${t.endLocal}, ${t.venue}`;
+      const sub = document.createElement('span');
+      sub.textContent = [t.audience === 'YOUTH' ? 'Jugend' : 'Erwachsene', t.groupName, t.active ? '' : 'inaktiv'].filter(Boolean).join(' · ');
+      row.append(sub);
+    } else {
+      row.textContent = '+ Neuer Standardtermin';
+    }
+    row.addEventListener('click', () => {
+      dom.templateSelect.value = id;
+      showTemplate();
+      document.getElementById('templateFormTitle').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+    box.append(row);
+  });
+}
+
 function showTemplate() {
   const t = state.templates.find(x => x.templateId === dom.templateSelect.value);
+  document.getElementById('templateFormTitle').textContent = t ? `Bearbeiten: ${WEEKDAYS[t.weekdayIso]} ${t.startLocal}` : 'Neuer Standardtermin';
   // The weekday is fixed once sessions exist for it
   dom.templateWeekday.disabled = Boolean(t);
   dom.templateWeekday.value = String(t ? t.weekdayIso : 1);
@@ -3395,6 +3450,8 @@ function showTemplate() {
   dom.templateActive.checked = t ? t.active : true;
   dom.templateApply.checked = false;
   dom.templateApplyWrap.style.display = t ? 'flex' : 'none';
+  // The list marks the template the form shows, also after saving
+  renderTemplateRows();
 }
 
 async function loadPlayerLinks() {
@@ -3878,10 +3935,12 @@ function renderKnowledge() {
   body.innerHTML = `
     <div class="knowledge-tools">
       <input id="knowledgeSearch" type="search" placeholder="Suchen" aria-label="Team-Wissen durchsuchen" value="${esc(knowledge.query)}">
-      <button class="btn btn-primary" type="button" data-knowledge="new">+ Neuer Artikel</button>
-      <button class="btn" type="button" data-knowledge="toggle-archived">${knowledge.showArchived ? 'Archiv ausblenden' : 'Archiv zeigen'}</button>
     </div>
-    <div id="knowledgeList"></div>`;
+    <div id="knowledgeList"></div>
+    <div class="knowledge-tools knowledge-write">
+      <button class="btn btn-secondary" type="button" data-knowledge="new">+ Neuer Artikel</button>
+      <button class="btn btn-secondary" type="button" data-knowledge="toggle-archived">${knowledge.showArchived ? 'Archiv ausblenden' : 'Archiv zeigen'}</button>
+    </div>`;
   document.getElementById('knowledgeSearch').addEventListener('input', event => {
     knowledge.query = event.target.value;
     renderKnowledgeList();

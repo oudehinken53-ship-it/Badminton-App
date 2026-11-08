@@ -135,7 +135,7 @@ header.app-header {
 }
 
 .badge-role {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   padding: 3px 10px;
   border-radius: 9999px;
   background-color: rgba(255, 255, 255, 0.2);
@@ -308,7 +308,7 @@ nav.app-nav {
   background: none;
   border: none;
   color: var(--gray-600);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
   display: flex;
   flex-direction: column;
@@ -531,7 +531,7 @@ h2.section-title {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 800;
   color: var(--union-red);
   background: var(--union-red-light);
@@ -1026,7 +1026,7 @@ a.hall-chip { text-decoration: none; }
 
 .detail-name small {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 400;
   color: var(--gray-600);
 }
@@ -1076,7 +1076,7 @@ a.hall-chip { text-decoration: none; }
 .attendance-person small {
   display: block;
   margin-top: 2px;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--gray-600);
 }
 
@@ -1177,7 +1177,7 @@ a.hall-chip { text-decoration: none; }
 .progress-stats span,
 .progress-stats small {
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: var(--gray-600);
 }
 
@@ -1200,7 +1200,7 @@ a.hall-chip { text-decoration: none; }
 }
 
 .level-next {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--gray-600);
 }
 
@@ -1224,6 +1224,23 @@ a.hall-chip { text-decoration: none; }
   border-radius: 8px;
   cursor: pointer;
 }
+
+/* Small two- or three-part switch, also used for the session filter */
+.seg-switch { display: flex; margin: 10px 0; border: 1px solid var(--gray-300); border-radius: 10px; overflow: hidden; }
+.seg-switch button { flex: 1 1 0; min-height: 44px; border: 0; border-left: 1px solid var(--gray-300); background: var(--union-white); font: inherit; font-size: 0.85rem; font-weight: 800; color: var(--gray-900); cursor: pointer; }
+.seg-switch button:first-child { border-left: 0; }
+.seg-switch button.active { background: var(--union-red); color: var(--union-white); }
+/* Standard sessions as rows */
+.template-select-legacy { display: none !important; }
+.template-rows .template-row { margin-bottom: 6px; }
+.template-rows .template-row.active { border-color: var(--union-red); box-shadow: inset 0 0 0 1px var(--union-red); }
+.ranking-by-hand { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 800; background: var(--warning-amber-light); color: #92400e; }
+.knowledge-write { margin-top: 12px; }
+.orga-details .pref-card { margin: 8px 0 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
+/* The archive is the one step that cannot be undone */
+.archive-danger { border: 2px solid var(--union-red); }
+.archive-warning { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--union-red-light); color: var(--union-red-dark); font-size: 0.85rem; font-weight: 700; }
+.btn-secondary { background: var(--union-white); color: var(--gray-900); border: 2px solid var(--gray-300); }
 
 /* The competitions as one slim switch in a row */
 #rankingTabs { flex-wrap: nowrap; gap: 0; border: 1px solid var(--gray-300); border-radius: 10px; overflow: hidden; }
@@ -1298,7 +1315,7 @@ a.hall-chip { text-decoration: none; }
 
 .badge-item small {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--gray-600);
 }
 
@@ -1388,9 +1405,9 @@ header.app-header .badge-role[hidden] { display: none; }
 header.app-header .brand-text { min-width: 0; }
 header.app-header .brand-wrapper { gap: 8px; min-width: 0; }
 header.app-header .club-logo { width: 38px; height: 38px; }
-header.app-header .club-name { font-size: 0.68rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header.app-header .club-name { font-size: 0.75rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 header.app-header .club-dept { font-size: 1.15rem; font-weight: 900; letter-spacing: 0.01em; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-header.app-header .badge-role { font-size: 0.6rem; padding: 2px 6px; }
+header.app-header .badge-role { font-size: 0.7rem; padding: 2px 6px; }
 header.app-header .user-bar { margin: 0; padding: 0; border: 0; flex: none; }
 header.app-header .user-info-text { display: flex; align-items: center; gap: 2px; }
 header.app-header #userName { max-width: 7.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

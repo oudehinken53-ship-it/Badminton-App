@@ -361,9 +361,8 @@
       <div id="orga-sessions" class="orga-view" hidden>
         <button class="orga-back" type="button">← Zurück</button>
         <h2 class="section-title">Termine</h2>
-        <div id="orgaSessionList"></div>
         <details class="orga-details" id="newSessionCard">
-          <summary>+ Zusätzlichen Termin anlegen</summary>
+          <summary>+ Termin anlegen</summary>
           <label for="newDate" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Datum:</label>
           <input id="newDate" type="date" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
           <div style="display: flex; gap: 8px;">
@@ -390,6 +389,11 @@
           </label>
           <button id="createSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Termin anlegen</button>
         </details>
+        <div id="orgaSessionFilter" class="seg-switch" role="group" aria-label="Welche Termine">
+          <button type="button" data-filter="COMING" class="active" aria-pressed="true">Kommende</button>
+          <button type="button" data-filter="PAST" aria-pressed="false">Vorbei, noch offen</button>
+        </div>
+        <div id="orgaSessionList"></div>
       </div>
 
       <div id="orga-templates" class="orga-view" hidden>
@@ -397,8 +401,10 @@
         <h2 class="section-title">Standardtermine</h2>
         <div class="pref-card" id="templateCard">
           <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 8px;">Daraus entstehen automatisch die Termine der nächsten 2 Wochen.</p>
-          <label for="templateSelect" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Standardtermin:</label>
-          <select id="templateSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
+          <div id="templateRows" class="template-rows" aria-label="Standardtermine"></div>
+          <label for="templateSelect" class="template-select-legacy">Standardtermin:</label>
+          <select id="templateSelect" class="demo-selector template-select-legacy"></select>
+          <h3 id="templateFormTitle" class="orga-group-title">Neuer Standardtermin</h3>
           <label for="templateWeekday" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Wochentag:</label>
           <select id="templateWeekday" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;">
             <option value="1">Montag</option>
@@ -443,8 +449,8 @@
       <div id="orga-ranking" class="orga-view" hidden>
         <button class="orga-back" type="button">← Zurück</button>
         <h2 class="section-title">Ranglisten</h2>
-        <p class="settings-note">Trainingstage zählen aus allen Terminen. Jede Person steht aber nur in einer Rangliste. Automatisch heißt: U18 laut Jahrgang in der Jugend, sonst bei den Erwachsenen. Eine Änderung verschiebt die ganze laufende Saison der Person in die andere Liste.</p>
         <input id="rankingMemberSearch" type="search" class="demo-selector" placeholder="Name suchen" aria-label="Mitglied suchen" style="width: 100%; padding: 10px; font-size: 0.9rem; margin-bottom: 10px;">
+        <p class="settings-note">Jede Person steht in genau einer Rangliste. „Automatisch“ heißt: unter 18 laut Jahrgang in der Jugend, sonst bei den Erwachsenen. Von Hand gesetzte stehen oben.</p>
         <div id="rankingMemberList" aria-live="polite"></div>
       </div>
 
@@ -477,18 +483,8 @@
       <div id="orga-access" class="orga-view" hidden>
         <button class="orga-back" type="button">← Zurück</button>
         <h2 class="section-title">Zugänge</h2>
-        <p class="settings-note">Die Rechte kommen aus der Spalte Rolle der Teilnehmerverwaltung: Admin, Trainer, sonst Spieler. Der Abgleich läuft stündlich. Steht dort eine Rolle, gilt sie auch für neue Codes, die Auswahl unten zählt nur für Personen ohne Eintrag.</p>
-        <button id="syncRolesBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 12px;">Rollen jetzt abgleichen</button>
-        <div class="pref-card">
-          <div style="font-size: 0.85rem; font-weight: 600;">Codes für alle ohne Zugang</div>
-          <p class="settings-note">Erzeugt für jede aktive Person ohne Gerät und ohne offenen Code einen Einladungscode. Die Codes werden nur einmal angezeigt.</p>
-          <button id="bulkInviteBtn" class="btn btn-primary" type="button" style="width: 100%;">Codes erzeugen</button>
-          <div id="bulkInviteResult" hidden>
-            <p id="bulkInviteInfo" class="settings-note" role="status"></p>
-            <button id="bulkInviteCopyBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 8px;">Liste kopieren</button>
-            <div id="bulkInviteList" class="bulk-invite-list"></div>
-          </div>
-        </div>
+        <details class="orga-details" open>
+          <summary>Einzelne Person: Code oder sperren</summary>
         <div class="pref-card" id="linkCard">
           <label for="linkPlayerSelect" style="font-size: 0.85rem; font-weight: 600;">Spieler:</label>
           <select id="linkPlayerSelect" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
@@ -508,6 +504,24 @@
             <div id="inviteExpiry" style="font-size: 0.8rem; color: var(--gray-600);"></div>
           </div>
         </div>
+        </details>
+        <details class="orga-details">
+          <summary>Codes für alle ohne Zugang</summary>
+        <div class="pref-card">
+                    <p class="settings-note">Erzeugt für jede aktive Person ohne Gerät und ohne offenen Code einen Einladungscode. Die Codes werden nur einmal angezeigt.</p>
+          <button id="bulkInviteBtn" class="btn btn-primary" type="button" style="width: 100%;">Codes erzeugen</button>
+          <div id="bulkInviteResult" hidden>
+            <p id="bulkInviteInfo" class="settings-note" role="status"></p>
+            <button id="bulkInviteCopyBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 8px;">Liste kopieren</button>
+            <div id="bulkInviteList" class="bulk-invite-list"></div>
+          </div>
+        </div>
+        </details>
+        <details class="orga-details">
+          <summary>Rollen abgleichen</summary>
+          <p class="settings-note">Die Rechte kommen aus der Spalte Rolle der Teilnehmerverwaltung: Admin, Trainer, sonst Spieler. Der Abgleich läuft stündlich. Steht dort eine Rolle, gilt sie auch für neue Codes, die Auswahl unten zählt nur für Personen ohne Eintrag.</p>
+        <button id="syncRolesBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 12px;">Rollen jetzt abgleichen</button>
+        </details>
       </div>
 
       <div id="orga-system" class="orga-view" hidden>
@@ -528,7 +542,12 @@
           <button id="correctBtn" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Korrektur buchen</button>
         </div>
         <div class="pref-card" style="margin-bottom: 16px;">
-          <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">Saison archivieren</h3>
+          <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">System</h3>
+          <button id="systemHealthBtn" class="btn btn-secondary" style="width: 100%;">System prüfen</button>
+        </div>
+        <div class="pref-card archive-danger">
+          <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">⚠ Saison archivieren</h3>
+          <p class="archive-warning">Nicht umkehrbar. Erst „Prüfen“, dann nur archivieren, wenn die Saison wirklich abgeschlossen ist.</p>
           <p style="font-size: 0.85rem; color: var(--gray-600);">Sichert den endgültigen Stand einer abgeschlossenen Saison. Danach sind keine Änderungen an ihr mehr möglich.</p>
           <label for="archiveYear" style="display: block; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">Saison:</label>
           <select id="archiveYear" class="demo-selector" style="width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem;"></select>
@@ -537,10 +556,6 @@
             <button id="archivePreviewBtn" class="btn btn-primary" style="flex: 1;">Prüfen</button>
             <button id="archiveApplyBtn" class="btn btn-decline" style="flex: 1;" disabled>Endgültig archivieren</button>
           </div>
-        </div>
-        <div class="pref-card">
-          <h3 style="font-size: 1rem; font-weight: 800; margin-bottom: 10px; color: var(--gray-900);">System</h3>
-          <button id="systemHealthBtn" class="btn btn-decline" style="width: 100%;">❤️ System-Gesundheitscheck prüfen</button>
         </div>
       </div>
     </section>
