@@ -836,9 +836,17 @@ input:checked + .slider:before {
   color: var(--gray-600);
 }
 
+/* The next session is a quick way in, not a warning: neutral, like the other entries, with a darker edge */
 .orga-menu-next {
-  border: 2px solid var(--union-red, #E1031F);
+  border: 2px solid var(--gray-300);
 }
+
+/* Orga menu in groups, as slim rows with an arrow */
+.orga-group-title { margin: 16px 0 6px; font-size: 0.8rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-600); }
+.orga-group:not(:has(.orga-menu-item:not([hidden]))) { display: none; }
+#orga-menu .orga-group .orga-menu-item { position: relative; min-height: 52px; margin-bottom: 6px; padding: 8px 40px 8px 14px; box-shadow: none; border-color: var(--gray-200); }
+#orga-menu .orga-group .orga-menu-item::after { content: "›"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 1.3rem; color: var(--gray-500, #64748b); }
+#orga-menu .orga-group a.orga-menu-item[target="_blank"]::after { content: "↗"; font-size: 1rem; }
 
 .orga-back {
   min-height: 44px;

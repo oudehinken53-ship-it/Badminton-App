@@ -211,10 +211,10 @@
 
     <!-- Tab 2: Preferences (Stammtage) -->
     <section id="tab-preferences" class="tab-content">
-      <h2 class="section-title">Meine Stammspieltage</h2>
+      <h2 class="section-title">Meine festen Tage</h2>
       <div class="pref-card">
         <p style="font-size: 0.85rem; color: var(--gray-600); margin-bottom: 16px;">
-          Aktiviere deine regelmäßigen Trainingstage. Du wirst dann bei jeder neuen Woche automatisch als Teilnehmer vorgemerkt.
+          An deinen festen Tagen (auch Stammtage genannt) wirst du automatisch angemeldet. Abmelden geht jederzeit beim Termin, das bleibt dann so. Änderungen hier gelten erst nach „Speichern“.
         </p>
 
         <div id="prefList" aria-live="polite">
@@ -222,7 +222,7 @@
         </div>
 
         <button id="savePreferencesBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-          ✓ Stammtage speichern
+          ✓ Feste Tage speichern
         </button>
       </div>
     </section>
@@ -325,18 +325,31 @@
     <!-- Tab 4: Organizer & Admin Panel -->
     <section id="tab-admin" class="tab-content">
       <div id="orga-menu" class="orga-view">
-        <h2 class="section-title">Trainer & Admin</h2>
+        <h2 class="section-title">Orga</h2>
         <button id="orgaNextBtn" class="orga-menu-item orga-menu-next" type="button"></button>
-        <button class="orga-menu-item" type="button" data-orga-view="sessions">📅 Termine<span>Liste, zusätzlicher Termin</span></button>
-        <button class="orga-menu-item" type="button" data-orga-view="templates">🔁 Standardtermine<span>Wiederkehrende Zeiten</span></button>
-        <button class="orga-menu-item" type="button" data-orga-view="ranking">🏅 Ranglisten<span>Wer in welcher Rangliste steht</span></button>
-        <button id="orgaMenuKnowledge" class="orga-menu-item" type="button">📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
-        <a id="orgaMenuTournament" class="orga-menu-item" href="https://union-turnier.oudehinken53-3cc.workers.dev" target="_blank" rel="noopener noreferrer" hidden>🏆 Turniermanager<span>Turniere planen und Ergebnisse eintragen</span></a>
-        <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
-        <button id="orgaMenuTrainers" class="orga-menu-item" type="button" data-orga-view="trainers" hidden>🧑‍🏫 Trainer-Einsätze<span>Anmeldungen für die Jugend</span></button>
-        <button id="orgaMenuProfiles" class="orga-menu-item" type="button" data-orga-view="profiles" hidden>📝 Mitgliederdaten<span id="orgaMenuProfilesCount">Name und Geburtsdatum</span></button>
-        <a id="orgaMenuShuttle" class="orga-menu-item" href="https://www.appsheet.com/start/52b54560-9607-4ddc-a6b2-6802a26d5376" target="_blank" rel="noopener noreferrer">📣 Beitrag vorschlagen<span>Für Instagram und Facebook</span></a>
-        <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur & System<span>Punkte korrigieren, Prüfung</span></button>
+        <!-- Grouped by task (docs/ux/GESAMTEMPFEHLUNG.md, P2-A). Who sees what is unchanged, a group without a visible entry hides. -->
+        <div class="orga-group">
+          <h3 class="orga-group-title">Training organisieren</h3>
+          <button class="orga-menu-item" type="button" data-orga-view="sessions">📅 Termine<span>Liste, zusätzlicher Termin</span></button>
+          <button class="orga-menu-item" type="button" data-orga-view="templates">🔁 Standardtermine<span>Wiederkehrende Zeiten</span></button>
+          <button id="orgaMenuTrainers" class="orga-menu-item" type="button" data-orga-view="trainers" hidden>🧑‍🏫 Trainer-Einsätze<span>Anmeldungen für die Jugend</span></button>
+        </div>
+        <div class="orga-group">
+          <h3 class="orga-group-title">Mitglieder &amp; Wertung</h3>
+          <button id="orgaMenuProfiles" class="orga-menu-item" type="button" data-orga-view="profiles" hidden>📝 Mitgliederdaten<span id="orgaMenuProfilesCount">Name und Geburtsdatum</span></button>
+          <button class="orga-menu-item" type="button" data-orga-view="ranking">🏅 Ranglisten<span>Wer in welcher Rangliste steht</span></button>
+          <button id="orgaMenuAccess" class="orga-menu-item" type="button" data-orga-view="access" hidden>🔑 Zugänge<span>Einladungscodes, Geräte</span></button>
+        </div>
+        <div class="orga-group">
+          <h3 class="orga-group-title">Verein</h3>
+          <button id="orgaMenuKnowledge" class="orga-menu-item" type="button">📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
+          <a id="orgaMenuTournament" class="orga-menu-item" href="https://union-turnier.oudehinken53-3cc.workers.dev" target="_blank" rel="noopener noreferrer" hidden>🏆 Turniermanager<span>Turniere planen und Ergebnisse eintragen</span></a>
+          <a id="orgaMenuShuttle" class="orga-menu-item" href="https://www.appsheet.com/start/52b54560-9607-4ddc-a6b2-6802a26d5376" target="_blank" rel="noopener noreferrer">📣 Beitrag vorschlagen<span>Für Instagram und Facebook</span></a>
+        </div>
+        <div class="orga-group">
+          <h3 class="orga-group-title">System</h3>
+          <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur &amp; System<span>Punkte korrigieren, Prüfung</span></button>
+        </div>
       </div>
 
       <div id="orga-sessions" class="orga-view" hidden>
@@ -535,8 +548,8 @@
       <span>Trainings</span>
     </button>
     <button class="nav-tab" data-tab="preferences">
-      <span class="icon">⚙️</span>
-      <span>Stammtage</span>
+      <span class="icon">📅</span>
+      <span>Feste Tage</span>
     </button>
     <button class="nav-tab" data-tab="profile">
       <span class="icon">🏅</span>

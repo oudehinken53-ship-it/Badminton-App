@@ -2201,7 +2201,7 @@ dom.savePreferencesBtn.addEventListener('click', async () => {
       payload[input.dataset.templateId] = input.checked;
     });
     await callApi('setPreferences', payload);
-    showToast('Stammtage erfolgreich gespeichert! ✓');
+    showToast('Feste Tage gespeichert ✓');
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
   } finally {
