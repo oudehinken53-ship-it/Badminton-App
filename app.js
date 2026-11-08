@@ -129,6 +129,10 @@ const dom = {
   playerRankSummary: document.getElementById('playerRankSummary'),
   sessionList: document.getElementById('sessionList'),
   refreshSessionsBtn: document.getElementById('refreshSessionsBtn'),
+  weekTitle: document.getElementById('weekTitle'),
+  laterBox: document.getElementById('laterBox'),
+  laterTitle: document.getElementById('laterTitle'),
+  laterList: document.getElementById('laterList'),
   savePreferencesBtn: document.getElementById('savePreferencesBtn'),
   refreshLeaderboardBtn: document.getElementById('refreshLeaderboardBtn'),
   leaderboardBody: document.getElementById('leaderboardBody'),
@@ -1517,6 +1521,8 @@ function applyUser(me) {
   state.currentUser = me;
   dom.userName.textContent = `${me.firstName} ${me.lastName}`;
   dom.roleBadge.textContent = ROLE_LABELS[me.role] || me.role;
+  // Members need no label, it would only push the name and the gear into a second row
+  dom.roleBadge.hidden = me.role === 'PLAYER';
   dom.loginBox.style.display = 'none';
   // An older backend does not know the setting, then there is nothing to offer
   dom.settingsBtn.hidden = !me.sessionView;
@@ -1550,7 +1556,6 @@ async function initUser() {
 
 // Sessions & Personal Rank Rendering
 async function loadSessions() {
-  loadPlayerRank();
   try {
     await cachedRead('listSessions', {}, sessions => {
       state.sessions = sessions;
@@ -1926,102 +1931,142 @@ function formatDate(isoDate) {
   return `${dayName} ${dd}.${mm}.${yyyy}`;
 }
 
+// --- The training week on the start page (DECISIONS 22, docs/ux/WOCHENANSICHT-VORSCHLAG.md) ---
+
+function shortDate(isoDate) {
+  return formatDate(isoDate).slice(0, 9);
+}
+
+function guestText(session) {
+  const g = Number(session.guestCount) || 0;
+  return g > 0 ? ` + ${g} ${g === 1 ? 'Gast' : 'Gäste'}` : '';
+}
+
+function countText(session) {
+  const n = Number(session.confirmedCount) || 0;
+  return `${n} ${n === 1 ? 'Zusage' : 'Zusagen'}${guestText(session)}`;
+}
+
+// Two states from the server, nothing when it sends none (past, canceled, older backend). Never red by guess.
+function keyIconHtml(session, withText) {
+  if (session.keyCovered !== true && session.keyCovered !== false) return '';
+  const label = session.keyCovered ? 'Schlüssel dabei' : 'Kein Schlüssel dabei';
+  return `<span class="wk-key ${session.keyCovered ? 'wk-key-yes' : 'wk-key-no'}"><span class="wk-key-icon" role="img" aria-label="${label}">🔑</span>${withText ? `<span class="wk-key-text" aria-hidden="true">${label}</span>` : ''}</span>`;
+}
+
+function sessionStateText(session, long) {
+  if (session.status === 'CANCELED') return { cls: 'wk-off', text: 'Abgesagt' };
+  if (session.status === 'CLOSING') return { cls: 'wk-off', text: 'Wird abgeschlossen' };
+  if (session.status === 'CLOSED') return { cls: 'wk-off', text: 'Abgeschlossen' };
+  if (session.myRegistration === 'CONFIRMED') return { cls: 'wk-yes', text: long ? '✓ Du bist angemeldet' : '✓ angemeldet' };
+  return { cls: 'wk-no', text: long ? '○ Du bist nicht angemeldet' : 'nicht angemeldet' };
+}
+
+// One button. It sends the target state, so an old picture from the cache cannot send the opposite.
+function registrationButtonHtml(session) {
+  if (!canChangeRegistration_(session, berlinToday())) return '';
+  const target = registrationTarget_(session.myRegistration);
+  return `<button class="btn wk-btn ${target === 'CONFIRMED' ? 'wk-join' : 'wk-leave'}" type="button" data-target="${target}">${target === 'CONFIRMED' ? 'Zusagen' : 'Abmelden'}</button>`;
+}
+
+function attendanceLinkHtml(session) {
+  if (!session.attendance || session.attendance.windowState !== 'OPEN') return '';
+  return '<span class="wk-attend">Wer war da? ›</span>';
+}
+
+function weekCard(session, size, tag) {
+  const card = document.createElement('article');
+  const state = sessionStateText(session, size === 'big');
+  const struck = session.status === 'CANCELED' ? ' wk-struck' : '';
+  card.className = `wk-card wk-${size}${session.status !== 'OPEN' ? ' wk-closed' : ''}${tag === 'NÄCHSTES TRAINING' ? ' wk-next' : ''}`;
+  const time = `${esc(session.startLocal)}–${esc(session.endLocal)}`;
+  if (size === 'big') {
+    const where = [session.audience === 'YOUTH' ? 'Jugend' : '', session.trainerName ? `Trainer: ${esc(session.trainerName)}` : ''].filter(Boolean).join(' · ');
+    const n = Number(session.confirmedCount) || 0;
+    card.innerHTML = `
+      <span class="wk-tag">${esc(tag)}</span>
+      <div class="wk-when${struck}">${esc(shortDate(session.dateLocal))} · ${time}</div>
+      <div class="wk-where">${hallChipHtml(session.venue)}${where ? `<span>${where}</span>` : ''}</div>
+      <div class="wk-count-row"><span class="wk-count"><strong>${n}</strong> ${n === 1 ? 'Zusage' : 'Zusagen'}${esc(guestText(session))}</span>${keyIconHtml(session, true)}</div>
+      ${trainerChipHtml(session) ? `<div class="wk-trainer">${trainerChipHtml(session)}</div>` : ''}
+      <div class="wk-state ${state.cls}">${esc(state.text)}</div>
+      ${registrationButtonHtml(session)}
+      ${attendanceLinkHtml(session)}
+    `;
+  } else {
+    const trainerMissing = session.needsTrainer === true ? ' · <span class="wk-warn">kein Trainer</span>' : '';
+    card.innerHTML = `
+      <div class="wk-l1${struck}">${esc(shortDate(session.dateLocal))} · ${time}</div>
+      <div class="wk-side">${keyIconHtml(session, false)}${registrationButtonHtml(session)}</div>
+      <div class="wk-l2">${esc(session.venue)}${session.audience === 'YOUTH' ? ' · Jugend' : ''} · <strong>${esc(countText(session))}</strong> · <span class="${state.cls}">${esc(state.text)}</span>${trainerMissing}</div>
+    `;
+  }
+  wireWeekCard(card, session);
+  return card;
+}
+
+function pastRow(session) {
+  const row = document.createElement('div');
+  const open = session.attendance && session.attendance.windowState === 'OPEN';
+  row.className = 'wk-past';
+  row.innerHTML = `
+    <span>${esc(shortDate(session.dateLocal))} · ${esc(session.startLocal)} · ${session.status === 'CANCELED' ? 'abgesagt' : 'vorbei'}</span>
+    <span class="wk-past-link">${open ? 'Wer war da? ›' : 'Details ›'}</span>
+  `;
+  if (open && session.attendance.deadline) row.title = `Eintragen bis ${formatDeadline(session.attendance.deadline)}`;
+  wireWeekCard(row, session);
+  return row;
+}
+
+// The card opens the session page, only the button saves. Never both on one tap.
+function wireWeekCard(card, session) {
+  card.dataset.clickable = 'true';
+  card.tabIndex = 0;
+  card.setAttribute('aria-label', `Details zu ${formatDate(session.dateLocal)}, ${session.startLocal} Uhr`);
+  card.addEventListener('click', event => {
+    if (event.target.closest('button, a')) return;
+    openSession(session.sessionId);
+  });
+  card.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && event.target === card) openSession(session.sessionId);
+  });
+  const button = card.querySelector('[data-target]');
+  if (button) button.addEventListener('click', () => saveRegistration(button, session));
+}
+
+async function saveRegistration(button, session) {
+  if (button.disabled) return;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  try {
+    const res = await callApi('setRegistration', { sessionId: session.sessionId, state: button.dataset.target });
+    showToast(res.state === 'CONFIRMED' ? 'Zugesagt ✓' : 'Abgemeldet');
+    await loadSessions();
+  } catch (err) {
+    showToast(err.code === 'SESSION_NOT_OPEN' ? 'Dieser Termin ist nicht mehr offen.' : `Fehler: ${err.message}`);
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    if (err.code === 'SESSION_NOT_OPEN') loadSessions();
+  }
+}
+
 function renderSessions(allSessions) {
+  const plan = planTrainingWeek_(allSessions, berlinToday());
+  dom.weekTitle.textContent = `${plan.isCurrentWeek ? 'Diese Woche' : 'Nächste Woche'} · KW ${plan.weekNumber}`;
+  dom.attendanceDue.replaceChildren(...plan.past.map(pastRow));
   dom.sessionList.replaceChildren();
 
-  // Past sessions with an open attendance list have their own place above the coming ones
-  renderAttendanceDue(allSessions);
-  const sessions = allSessions.filter(s => !(s.attendance && s.attendance.windowState === 'OPEN'));
-
-  if (sessions.length === 0) {
-    dom.sessionList.innerHTML = '<p style="color: var(--gray-600); text-align: center; padding: 24px;">Keine anstehenden Termine.</p>';
-    return;
+  if (plan.featured.length === 0) {
+    dom.sessionList.innerHTML = '<p class="wk-empty">Keine anstehenden Termine.</p>';
+  } else {
+    const tag = plan.featuredIsToday ? 'HEUTE' : 'NÄCHSTES TRAINING';
+    plan.featured.forEach(session => dom.sessionList.append(weekCard(session, 'big', tag)));
+    plan.week.forEach(session => dom.sessionList.append(weekCard(session, 'compact')));
   }
 
-  sessions.forEach(session => {
-    const card = document.createElement('article');
-    const regClass = session.myRegistration ? session.myRegistration.toLowerCase() : '';
-    card.className = `session-card ${session.status !== 'OPEN' ? 'closed' : regClass}`;
-
-    let badgeClass = 'badge-undecided';
-    let badgeLabel = 'Nicht reagiert';
-    if (session.status === 'CLOSED') {
-      badgeClass = 'badge-closed';
-      badgeLabel = 'Abgeschlossen';
-    } else if (session.status === 'CANCELED') {
-      badgeClass = 'badge-closed';
-      badgeLabel = 'Abgesagt';
-    } else if (session.status === 'CLOSING') {
-      badgeClass = 'badge-closed';
-      badgeLabel = 'Wird abgeschlossen';
-    } else if (session.myRegistration === 'CONFIRMED') {
-      badgeClass = 'badge-confirmed';
-      badgeLabel = '✓ Angemeldet';
-    } else if (session.myRegistration === 'DECLINED') {
-      badgeClass = 'badge-declined';
-      badgeLabel = '✗ Abgemeldet';
-    }
-
-    const regLabel = session.confirmedCount === 1 ? 'Anmeldung' : 'Anmeldungen';
-    const guestText = session.guestCount > 0 ? ` + ${esc(session.guestCount)} ${session.guestCount === 1 ? 'Gast' : 'Gäste'}` : '';
-
-    card.innerHTML = `
-      <div class="session-header">
-        <div>${sessionHeadHtml(session)}</div>
-        <span class="session-status-badge ${badgeClass}">${badgeLabel}</span>
-      </div>
-
-      <div class="registration-count-box">
-        <span class="count-icon">👥</span>
-        <span class="count-text"><strong class="count-number">${esc(session.confirmedCount)}</strong> ${regLabel}${guestText}</span>
-      </div>
-
-      ${session.status === 'OPEN' ? `
-        <div class="action-buttons">
-          <button class="btn btn-confirm" data-action="CONFIRMED" ${session.myRegistration === 'CONFIRMED' ? 'disabled' : ''}>
-            ✓ Zusagen
-          </button>
-          <button class="btn btn-decline" data-action="DECLINED" ${session.myRegistration === 'DECLINED' ? 'disabled' : ''}>
-            ✗ Absagen
-          </button>
-        </div>
-      ` : `<p style="font-size: 0.8rem; color: var(--gray-600); margin-top: 8px;">${badgeLabel}: keine Änderung mehr möglich.</p>`}
-      <div class="session-more">Details ›</div>
-    `;
-
-    // The whole card opens the session page, the buttons keep their own function
-    card.dataset.clickable = 'true';
-    card.tabIndex = 0;
-    card.setAttribute('aria-label', `Details zu ${formatDate(session.dateLocal)}`);
-    card.addEventListener('click', event => {
-      if (!event.target.closest('button, a')) openSession(session.sessionId);
-    });
-    card.addEventListener('keydown', event => {
-      if (event.key === 'Enter' && event.target === card) openSession(session.sessionId);
-    });
-
-    // 1-Click Handlers with Loading State
-    const confirmBtn = card.querySelector('[data-action="CONFIRMED"]');
-    const declineBtn = card.querySelector('[data-action="DECLINED"]');
-
-    [confirmBtn, declineBtn].forEach(btn => {
-      if (!btn) return;
-      btn.addEventListener('click', async () => {
-        const stateToSet = btn.dataset.action;
-        btn.disabled = true;
-        try {
-          const res = await callApi('setRegistration', { sessionId: session.sessionId, state: stateToSet });
-          showToast(`Erfolgreich gespeichert: ${res.state === 'CONFIRMED' ? 'Zusage ✓' : 'Absage ✗'}`);
-          await loadSessions();
-        } catch (err) {
-          showToast(`Fehler: ${err.message}`);
-          btn.disabled = false;
-        }
-      });
-    });
-
-    dom.sessionList.append(card);
-  });
+  dom.laterBox.hidden = plan.later.length === 0;
+  dom.laterTitle.textContent = `Weitere Termine (${plan.later.length})`;
+  dom.laterList.replaceChildren(...plan.later.map(session => weekCard(session, 'compact')));
 }
 
 dom.refreshSessionsBtn.addEventListener('click', () => loadSessions());
@@ -2493,36 +2538,7 @@ dom.attendanceAuditBox.addEventListener('toggle', async () => {
   }
 });
 
-function renderAttendanceDue(sessions) {
-  dom.attendanceDue.replaceChildren();
-  const due = sessions.filter(s => s.attendance && s.attendance.windowState === 'OPEN');
-  if (due.length === 0) return;
-
-  const title = document.createElement('h2');
-  title.className = 'section-title';
-  title.textContent = 'Wer war tatsächlich da?';
-  dom.attendanceDue.append(title);
-
-  due.forEach(session => {
-    const card = document.createElement('article');
-    card.className = 'session-card attendance-due';
-    card.dataset.clickable = 'true';
-    card.innerHTML = `
-      <div>${sessionHeadHtml(session)}</div>
-      <p class="attendance-due-state"></p>
-      <p class="attendance-due-deadline"></p>
-      <button class="btn btn-confirm" type="button">Anwesenheit bestätigen</button>
-    `;
-    card.querySelector('.attendance-due-state').textContent = `Du: ${ATTENDANCE_LABELS[session.attendance.myState] || session.attendance.myState}`;
-    card.querySelector('.attendance-due-deadline').textContent = `Noch bis ${formatDeadline(session.attendance.deadline)} bearbeitbar`;
-    card.addEventListener('click', event => {
-      if (!event.target.closest('a')) openSession(session.sessionId);
-    });
-    dom.attendanceDue.append(card);
-  });
-}
-
-// Personal progress on the start page, never more than one message at a time
+// Personal progress in the profile, never more than one message at a time
 function levelBarHtml(level) {
   const percent = Math.round(level.fraction * 100);
   const next = level.nextMinPoints === null
@@ -2611,6 +2627,7 @@ function badgesHtml(badges) {
 
 async function loadProfile(seasonYear) {
   dom.profileBody.textContent = 'Lade …';
+  if (!seasonYear) loadPlayerRank();
   try {
     await cachedRead('getProgress', seasonYear ? { seasonYear } : {}, renderProfile, { slot: 'profile' });
   } catch (err) {

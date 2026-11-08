@@ -1107,20 +1107,6 @@ a.hall-chip { text-decoration: none; }
   font-size: 0.8rem;
 }
 
-.attendance-due { border: 2px solid var(--union-red); }
-.attendance-due .btn { width: 100%; margin-top: 10px; }
-
-.attendance-due-state {
-  margin-top: 8px;
-  font-size: 0.9rem;
-  font-weight: 800;
-}
-
-.attendance-due-deadline {
-  font-size: 0.8rem;
-  color: var(--gray-600);
-}
-
 /* Personal progress */
 .progress-card {
   padding: 14px;
@@ -1275,3 +1261,97 @@ a.hall-chip { text-decoration: none; }
 
 /* An element with its own display rule must still disappear when it is marked as hidden */
 [hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------------------------------------
+   Training week on the start page (DECISIONS 22, docs/ux/WOCHENANSICHT-VORSCHLAG.md).
+   Big card for today or the next session, compact cards for the rest of the week, past as a row.
+   --------------------------------------------------------------------------------------------- */
+.wk-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin: 8px 0 4px; }
+.wk-title { margin: 0; font-size: 1rem; font-weight: 900; letter-spacing: 0.03em; text-transform: uppercase; color: var(--gray-900); }
+.wk-refresh { min-width: 44px; min-height: 44px; border: 1px solid var(--gray-200); border-radius: 10px; background: var(--union-white); color: var(--gray-700, #334155); font-size: 1.1rem; cursor: pointer; }
+.wk-empty { color: var(--gray-600); text-align: center; padding: 24px; }
+
+.wk-card { background: var(--union-white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: 8px; cursor: pointer; }
+.wk-card:focus-visible, .wk-past:focus-visible { outline: 3px solid var(--info-blue); outline-offset: 2px; }
+.wk-big { border: 2px solid var(--union-red); padding: 12px 14px 14px; box-shadow: var(--shadow); }
+.wk-big.wk-next { border-color: var(--gray-900); }
+.wk-tag { display: inline-block; font-size: 0.75rem; font-weight: 900; letter-spacing: 0.06em; padding: 2px 10px; border-radius: 9999px; background: var(--union-red); color: var(--union-white); }
+.wk-next .wk-tag { background: var(--gray-900); }
+.wk-when { font-size: 1.25rem; font-weight: 900; margin: 6px 0 0; color: var(--gray-900); }
+.wk-where { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 0.875rem; color: var(--gray-600); }
+.wk-count-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 10px 0 6px; }
+.wk-count { font-size: 1rem; font-weight: 600; color: var(--gray-600); }
+.wk-count strong { font-size: 1.75rem; font-weight: 900; color: var(--gray-900); line-height: 1; margin-right: 2px; }
+.wk-trainer { margin-bottom: 4px; }
+.wk-trainer .trainer-chip { margin-top: 0; }
+.wk-state { font-size: 1rem; font-weight: 700; margin: 4px 0 10px; }
+.wk-yes { color: var(--success-green-hover); font-weight: 700; }
+.wk-no { color: var(--gray-600); }
+.wk-off { color: var(--gray-600); font-weight: 700; }
+.wk-warn { color: #92400e; font-weight: 700; white-space: nowrap; }
+.wk-struck { text-decoration: line-through; color: var(--gray-500, #64748b); }
+.wk-closed { background: var(--gray-100); }
+
+.wk-btn { min-height: 48px; border-radius: 10px; font-weight: 800; font-size: 1rem; border: 2px solid transparent; padding: 0 16px; cursor: pointer; }
+.wk-big .wk-btn { width: 100%; }
+.wk-join { background: var(--success-green); color: var(--union-white); }
+.wk-leave { background: var(--union-white); color: var(--union-red-dark); border-color: var(--union-red); }
+.wk-btn[aria-busy="true"] { opacity: 0.6; }
+.wk-attend { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 6px; font-weight: 800; color: var(--union-red-dark); }
+
+/* Compact: two lines on the left, key and the one button on the right */
+.wk-compact { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 10px 12px; }
+.wk-l1 { font-weight: 900; font-size: 0.95rem; color: var(--gray-900); white-space: nowrap; }
+@media (max-width: 359px) { .wk-l1 { white-space: normal; } }
+.wk-l2 { font-size: 0.875rem; color: var(--gray-600); }
+.wk-l2 strong { color: var(--gray-900); font-size: 1rem; white-space: nowrap; }
+.wk-side { grid-row: 1 / span 2; grid-column: 2; display: flex; align-items: center; gap: 8px; }
+.wk-compact .wk-btn { min-height: 44px; min-width: 100px; padding: 0 10px; }
+.wk-compact .wk-key-icon { width: 28px; height: 28px; }
+.wk-side { gap: 6px; }
+
+/* Key: green, or red and struck through as second sign besides the colour */
+.wk-key { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; font-weight: 800; }
+.wk-key-icon { position: relative; width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 0.95rem; flex: none; }
+.wk-key-yes { color: var(--success-green-hover); }
+.wk-key-yes .wk-key-icon { background: var(--success-green-light); box-shadow: inset 0 0 0 2px var(--success-green); }
+.wk-key-no { color: var(--union-red-dark); }
+.wk-key-no .wk-key-icon { background: var(--union-red-light); box-shadow: inset 0 0 0 2px var(--union-red); }
+.wk-key-no .wk-key-icon::after { content: ""; position: absolute; left: 4px; right: 4px; top: calc(50% - 1.5px); height: 3px; border-radius: 2px; background: var(--union-red); transform: rotate(-45deg); }
+
+/* Past sessions: one row, opens the session, there the attendance list */
+.wk-past-list:empty { display: none; }
+.wk-past { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 0 12px; margin-bottom: 8px; border: 1px dashed var(--gray-300); border-radius: var(--radius-md); color: var(--gray-600); font-size: 0.875rem; cursor: pointer; }
+.wk-past-link { font-weight: 800; color: var(--union-red-dark); white-space: nowrap; }
+
+.wk-later { margin: 4px 0 12px; }
+.wk-later > summary { min-height: 44px; display: flex; align-items: center; font-weight: 800; color: var(--union-red-dark); cursor: pointer; }
+.wk-later[hidden] { display: none; }
+
+/* Slim header: logo, name of the department, user and gear in one row */
+header.app-header { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; padding: calc(6px + env(safe-area-inset-top, 0px)) 12px 6px; }
+header.app-header .header-top { flex: 1 1 0; min-width: 0; gap: 8px; }
+header.app-header .badge-role[hidden] { display: none; }
+header.app-header .brand-text { min-width: 0; }
+header.app-header .brand-wrapper { gap: 8px; min-width: 0; }
+header.app-header .club-logo { width: 38px; height: 38px; }
+header.app-header .club-name { font-size: 0.68rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header.app-header .club-dept { font-size: 1.05rem; font-weight: 900; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header.app-header .badge-role { font-size: 0.6rem; padding: 2px 6px; }
+header.app-header .user-bar { margin: 0; padding: 0; border: 0; flex: none; }
+header.app-header .user-info-text { display: flex; align-items: center; gap: 2px; }
+header.app-header #userName { max-width: 7.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header.app-header #loginBox, header.app-header #personaWrap { flex: 1 1 100%; }
+header.app-header #personaWrap { margin-top: 4px; }
+@media (max-width: 359px) { header.app-header #userName { max-width: 5em; } }
+
+/* The hall link keeps its small pill, a transparent border makes it a 44 px target */
+.wk-where .hall-chip { border: 8px solid transparent; background-clip: padding-box; margin: -4px -4px -4px -8px; }
+
+/* Room for the home bar of phones without a button */
+body { padding-bottom: calc(85px + env(safe-area-inset-bottom, 0px)); }
+nav.app-nav { padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+
+/* Install hint in one short block */
+.install-box { padding: 8px 12px; }
+.install-box p { margin: 0 0 4px; font-size: 0.85rem; }

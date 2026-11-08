@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.workers.dev; img-src 'self' data:; base-uri 'none'; form-action 'none'">
   <title>SV Union Lohne 1920 e.V. | Badminton</title>
   <meta name="description" content="Offizielle Trainings- und Anwesenheitsverwaltung der Badminton-Abteilung des SV Union Lohne 1920 e.V.">
@@ -120,19 +120,19 @@
     <section id="tab-sessions" class="tab-content active">
       <div id="trainingList">
       <p id="sessionViewHint" class="session-view-hint" hidden></p>
-      <div id="attendanceDue"></div>
-      <!-- Player Ranking Position in Current Year (Trainingswertung) -->
-      <div id="playerRankSummary" class="player-rank-summary" aria-live="polite">
-        <!-- Rendered dynamically by app.js -->
+      <!-- The training week first: today or the next session big, the rest of the week compact (DECISIONS 22) -->
+      <div class="wk-head">
+        <h2 id="weekTitle" class="wk-title">Diese Woche</h2>
+        <button id="refreshSessionsBtn" class="wk-refresh" type="button" aria-label="Termine aktualisieren">↻</button>
       </div>
-
-      <h2 class="section-title">
-        <span>Kommende Trainings</span>
-        <button id="refreshSessionsBtn" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; min-height: 32px; flex: none;">↻ Aktualisieren</button>
-      </h2>
+      <div id="attendanceDue" class="wk-past-list"></div>
       <div id="sessionList" aria-live="polite">
         <!-- Rendered by app.js -->
       </div>
+      <details id="laterBox" class="wk-later" hidden>
+        <summary id="laterTitle">Weitere Termine</summary>
+        <div id="laterList"></div>
+      </details>
       </div>
 
       <div id="trainingDetail" hidden>
@@ -305,6 +305,8 @@
       <button id="profileKnowledgeBtn" class="orga-menu-item" type="button" hidden>📚 Team-Wissen<span>Anleitungen und Links für Trainer und Vorstand</span></button>
       <a id="profileTournamentLink" class="orga-menu-item" href="https://union-turnier.oudehinken53-3cc.workers.dev" target="_blank" rel="noopener noreferrer" hidden>🏆 Turniermanager<span>Turniere planen und Ergebnisse eintragen</span></a>
       <h2 class="section-title">Mein Fortschritt</h2>
+      <!-- Points, cups and level of the current year, moved here from the start page -->
+      <div id="playerRankSummary" class="player-rank-summary" aria-live="polite"></div>
       <div id="profileBody" aria-live="polite"></div>
     </section>
 
@@ -532,6 +534,7 @@
 
   <script src="config.js"></script>
   <script src="scoring.js"></script>
+  <script src="week.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
