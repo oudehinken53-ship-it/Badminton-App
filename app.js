@@ -372,7 +372,11 @@ function apiError(code) {
 
 // Shown while waiting for the server. A short delay, so that a quick answer does not make it flicker.
 // It never blocks the page, the buttons of an action are disabled by the action itself.
-const LOADING_DELAY_MS = 150;
+// Wish of the operator (09.11.2026): the shuttle only while saving, and only when it takes a moment. Reading
+// never shows it, the page shows what it has or "Lade …" where it is empty. Except reads started by a button
+// whose answer comes as a message, there one would otherwise not see that something happens.
+const LOADING_DELAY_MS = 300;
+const LOUD_READS = new Set(['getSystemHealth', 'exportBackup', 'previewMigration']);
 const loadingIndicator = document.getElementById('loadingIndicator');
 const loadingText = document.getElementById('loadingText');
 const waiting = new Set();
@@ -398,9 +402,10 @@ function startLoading(action) {
   };
 }
 
-// API Dispatcher (Mock vs Gateway). A read that refreshes what is already on the screen passes quiet.
+// API Dispatcher (Mock vs Gateway). Only saving shows the shuttle, see LOUD_READS for the exceptions.
 async function callApi(action, data = {}, options = {}) {
-  const stopLoading = options.quiet ? () => {} : startLoading(action);
+  const shows = !options.quiet && (!READ_ACTIONS.has(action) || LOUD_READS.has(action));
+  const stopLoading = shows ? startLoading(action) : () => {};
   try {
     return await sendApi(action, data);
   } finally {
