@@ -358,6 +358,7 @@
         <div class="orga-group">
           <h3 class="orga-group-title">System</h3>
           <button id="orgaMenuSystem" class="orga-menu-item" type="button" data-orga-view="system" hidden>⚙️ Punktkorrektur &amp; System<span>Punkte korrigieren, Prüfung</span></button>
+          <button id="orgaMenuFeatures" class="orga-menu-item" type="button" data-orga-view="features" hidden>🧪 Neue Funktionen<span>Erst für Admins, dann für alle</span></button>
         </div>
       </div>
 
@@ -525,6 +526,14 @@
           <p class="settings-note">Die Rechte kommen aus der Spalte Rolle der Teilnehmerverwaltung: Admin, Trainer, sonst Spieler. Der Abgleich läuft stündlich. Steht dort eine Rolle, gilt sie auch für neue Codes, die Auswahl unten zählt nur für Personen ohne Eintrag.</p>
         <button id="syncRolesBtn" class="btn btn-primary" type="button" style="width: 100%; margin-bottom: 12px;">Rollen jetzt abgleichen</button>
         </details>
+      </div>
+
+      <!-- Switches for new functions (docs/ENTWICKLUNG-NEBEN-LIVE.md, Stufe 5), only for admins -->
+      <div id="orga-features" class="orga-view" hidden>
+        <button class="orga-back" type="button">← Zurück</button>
+        <h2 class="section-title">Neue Funktionen</h2>
+        <p class="settings-note">Eine neue Funktion kommt zuerst nur für Admins. Probier sie am eigenen Handy aus und gib sie dann hier frei. Das gilt sofort, ohne neue Version der App.</p>
+        <div id="featureList" aria-live="polite"></div>
       </div>
 
       <div id="orga-system" class="orga-view" hidden>

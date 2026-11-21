@@ -364,7 +364,9 @@ const ERROR_MESSAGES = {
   INVALID_LEGACY_ROWS: 'In der Punkteliste stehen ungültige oder doppelte Zeilen.',
   INVALID_SCORING_RULES: 'Die Wertungsregeln im Sheet sind ungültig. Bitte den Admin informieren.',
   UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar.',
-  NETWORK: 'Keine Verbindung zum Server.'
+  NETWORK: 'Keine Verbindung zum Server.',
+  FEATURE_OFF: 'Diese Funktion ist für dich noch nicht freigegeben.',
+  INVALID_FEATURE: 'Diesen Schalter gibt es nicht. Bitte die App neu laden.'
 };
 
 // When the answer to a save is lost, the save may have arrived anyway (outside review 21.11.2026, M1).
@@ -479,7 +481,7 @@ async function sendApi(action, data) {
 const STORED_READS = new Set(['whoami', 'listSessions', 'listTemplates', 'getPreferences', 'getProgress']);
 const MEMORY_READS = new Set(['getRankings', 'getLeaderboard', 'getSessionDetail']);
 const READ_ACTIONS = new Set([...STORED_READS, ...MEMORY_READS, 'getAttendance', 'getSessionRoster', 'getSeasonArchive',
-  'getProfile', 'listProfileRequests', 'listInactiveMembers', 'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration', 'listKnowledgeArticles', 'getKnowledgeHistory', 'getTrainerSignups']);
+  'getProfile', 'listProfileRequests', 'listInactiveMembers', 'getNotificationSettings', 'getCloseStatus', 'listPlayerLinks', 'listRankingMembers', 'getAttendanceAudit', 'getSystemHealth', 'exportBackup', 'previewMigration', 'listKnowledgeArticles', 'getKnowledgeHistory', 'getTrainerSignups', 'listFeatures']);
 const READ_CACHE_KEY = 'bms_read_cache';
 const READ_CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const readCache = new Map();
@@ -867,7 +869,15 @@ async function runMockApi(action, data) {
 
   switch (action) {
     case 'whoami':
-      return { sessionView: 'ALL', ...user, rankingGroup: scoringRankingGroup_(user, berlinToday().substring(0, 4)) };
+      return { sessionView: 'ALL', features: [], ...user, rankingGroup: scoringRankingGroup_(user, berlinToday().substring(0, 4)) };
+
+    // The demo has no switched functions
+    case 'listFeatures':
+      if (user.role !== 'ADMIN') throw apiError('FORBIDDEN');
+      return { levels: ['off', 'admins', 'trainers', 'all'], features: [] };
+
+    case 'setFeature':
+      throw apiError('INVALID_FEATURE');
 
     case 'listRankingMembers': {
       if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
@@ -1653,6 +1663,8 @@ function showSignedOut(message) {
 // Init User Profile
 function applyUser(me) {
   state.currentUser = me;
+  // Switched new functions this person sees (Stufe 5). An older backend sends none.
+  state.features = new Set(Array.isArray(me.features) ? me.features : []);
   // Only the first name, the header has little room. The full name is under Einstellungen.
   dom.userName.textContent = me.firstName;
   dom.roleBadge.textContent = ROLE_LABELS[me.role] || me.role;
@@ -3066,8 +3078,58 @@ document.querySelectorAll('[data-orga-view]').forEach(btn => {
     if (btn.dataset.orgaView === 'ranking') loadRankingMembers();
     if (btn.dataset.orgaView === 'profiles') loadProfilesView();
     if (btn.dataset.orgaView === 'trainers') loadTrainerSignups();
+    if (btn.dataset.orgaView === 'features') loadFeatures();
   });
 });
+
+// --- Switches for new functions (Stufe 5) ---
+
+// In the code of a new function: if (featureOn('name')) { … }. The server checks the same itself.
+function featureOn(name) {
+  return Boolean(state.features && state.features.has(name));
+}
+
+const FEATURE_LEVEL_LABELS = { off: 'Aus', admins: 'Nur Admins', trainers: 'Trainer und Admins', all: 'Alle' };
+
+async function loadFeatures() {
+  const box = document.getElementById('featureList');
+  box.textContent = 'Lade …';
+  try {
+    const { levels, features } = await callApi('listFeatures');
+    box.replaceChildren();
+    if (features.length === 0) {
+      box.innerHTML = '<p class="settings-note">Gerade gibt es keine neue Funktion zum Freigeben.</p>';
+      return;
+    }
+    features.forEach(feature => {
+      const row = document.createElement('label');
+      row.className = 'pref-item';
+      row.innerHTML = `<div><div class="pref-label">${esc(feature.label)}</div><div class="pref-sub">Sichtbar für: ${esc(FEATURE_LEVEL_LABELS[feature.level] || feature.level)}</div></div>`;
+      const select = document.createElement('select');
+      select.className = 'demo-selector';
+      select.setAttribute('aria-label', `${feature.label}: sichtbar für`);
+      levels.forEach(level => select.append(new Option(FEATURE_LEVEL_LABELS[level] || level, level, false, level === feature.level)));
+      select.addEventListener('change', async () => {
+        select.disabled = true;
+        try {
+          const saved = await callApi('setFeature', { name: feature.name, level: select.value });
+          feature.level = saved.level;
+          row.querySelector('.pref-sub').textContent = `Sichtbar für: ${FEATURE_LEVEL_LABELS[saved.level]}`;
+          showToast(`${feature.label}: ${FEATURE_LEVEL_LABELS[saved.level]} ✓`);
+        } catch (err) {
+          select.value = feature.level;
+          showToast(`Fehler: ${err.message}`, err.unclear ? 8000 : 3000);
+        } finally {
+          select.disabled = false;
+        }
+      });
+      row.append(select);
+      box.append(row);
+    });
+  } catch (err) {
+    box.innerHTML = `<p class="settings-note" role="alert">${esc(err.message)}</p>`;
+  }
+}
 
 function showProfileRequestCount(count) {
   dom.orgaMenuProfilesCount.textContent = count > 0 ? `${count} ${count === 1 ? 'Anfrage wartet' : 'Anfragen warten'}` : 'Name und Geburtsdatum';
@@ -3437,6 +3499,7 @@ async function loadOrgaTab() {
   dom.orgaMenuAccess.hidden = !isAdmin;
   document.getElementById('orgaMenuTrainers').hidden = !isAdmin;
   dom.orgaMenuSystem.hidden = !isAdmin;
+  document.getElementById('orgaMenuFeatures').hidden = !isAdmin;
   dom.orgaMenuProfiles.hidden = !canManage;
   // The board only gets the group "Verein", nothing to load for that
   if (!canManage) return;
