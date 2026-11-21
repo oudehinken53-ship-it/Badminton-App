@@ -94,6 +94,7 @@
         <h2 id="weekTitle" class="wk-title">Diese Woche</h2>
         <button id="refreshSessionsBtn" class="wk-refresh" type="button" aria-label="Termine aktualisieren">↻</button>
       </div>
+      <p id="dataState" class="data-state" role="status"></p>
       <div id="attendanceDue" class="wk-past-list"></div>
       <div id="sessionList" aria-live="polite">
         <!-- Rendered by app.js -->
@@ -107,6 +108,7 @@
       <div id="trainingDetail" hidden>
         <button class="orga-back" type="button">← Zurück</button>
         <div id="detailHead"></div>
+        <p id="detailDataState" class="data-state" role="status"></p>
         <!-- Fixed order (docs/ux/GESAMTEMPFEHLUNG.md, P2-B): my sign-up, trainer duty, attendance, people, management -->
         <section id="detailMine" class="detail-section">
           <h3 class="detail-section-title">Meine Anmeldung</h3>
@@ -231,6 +233,7 @@
           <!-- Rendered by app.js from the standard sessions -->
         </div>
 
+        <p id="prefDirty" class="pref-dirty" role="status" hidden>Noch nicht gespeichert.</p>
         <button id="savePreferencesBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
           ✓ Feste Tage speichern
         </button>
@@ -564,7 +567,7 @@
 
   <!-- Bottom Navigation -->
   <nav class="app-nav" aria-label="Hauptnavigation">
-    <button class="nav-tab active" data-tab="sessions">
+    <button class="nav-tab active" data-tab="sessions" aria-current="page">
       <span class="icon">🏸</span>
       <span>Trainings</span>
     </button>

@@ -204,7 +204,7 @@ a.orga-menu-item { display: block; text-decoration: none; color: inherit; box-si
 .install-close { margin-left: auto; min-width: 44px; min-height: 44px; background: none; border: none; font-size: 1rem; cursor: pointer; }
 .profile-subtitle { font-size: 1rem; margin: 16px 0 8px; }
 .profile-member { padding: 10px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
-.profile-member summary { font-weight: 600; cursor: pointer; min-height: 28px; }
+.profile-member summary { font-weight: 600; cursor: pointer; min-height: 44px; padding: 11px 0; box-sizing: border-box; }
 .profile-member-form { margin-top: 10px; }
 .profile-member-form .btn-decline { margin-top: 8px; }
 .profile-inactive { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--gray-200, #ddd); }
@@ -674,9 +674,14 @@ h2.section-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 14px 0;
+  min-height: 56px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--gray-100);
+  cursor: pointer;
 }
+.pref-dirty { margin: 12px 0 0; font-weight: 700; color: var(--union-red); }
 
 .pref-label {
   font-weight: 800;
@@ -732,6 +737,19 @@ input:checked + .slider {
 input:checked + .slider:before {
   transform: translateX(22px);
 }
+
+/* The hidden checkbox shows where the keyboard is (outside review, M4) */
+.switch input:focus-visible + .slider { outline: 3px solid var(--info-blue); outline-offset: 2px; }
+.switch { flex-shrink: 0; }
+
+/* Focus moved to the top of a new page by the app: no ring for that */
+[tabindex="-1"]:focus { outline: none; }
+
+/* How current the shown data is (outside review, M1) */
+.data-state { margin: -4px 0 10px; font-size: 0.85rem; color: var(--gray-600); }
+.data-state:empty { display: none; }
+#detailDataState { margin: 10px 0 0; }
+.data-state.data-stale { padding: 8px 10px; border-radius: 8px; background: #fff4e5; color: #7a4100; font-weight: 600; }
 
 /* Leaderboard */
 .leaderboard-table {

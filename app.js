@@ -233,6 +233,9 @@ const dom = {
   notificationToggleBtn: document.getElementById('notificationToggleBtn'),
   notificationCategories: document.getElementById('notificationCategories'),
   syncHint: document.getElementById('syncHint'),
+  dataState: document.getElementById('dataState'),
+  detailDataState: document.getElementById('detailDataState'),
+  prefDirty: document.getElementById('prefDirty'),
   settingsRankingNote: document.getElementById('settingsRankingNote'),
   rankingGroupTabs: document.getElementById('rankingGroupTabs'),
   rankingMemberSearch: document.getElementById('rankingMemberSearch'),
@@ -360,13 +363,20 @@ const ERROR_MESSAGES = {
   UNMATCHED_PLAYERS: 'Punkte können nicht allen Mitgliedern zugeordnet werden.',
   INVALID_LEGACY_ROWS: 'In der Punkteliste stehen ungültige oder doppelte Zeilen.',
   INVALID_SCORING_RULES: 'Die Wertungsregeln im Sheet sind ungültig. Bitte den Admin informieren.',
-  UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar. Nichts wurde gespeichert.',
-  NETWORK: 'Keine Verbindung zum Server. Nichts wurde gespeichert.'
+  UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar.',
+  NETWORK: 'Keine Verbindung zum Server.'
 };
 
-function apiError(code) {
-  const err = new Error(ERROR_MESSAGES[code] || `Unerwarteter Fehler (${code}). Nichts wurde gespeichert.`);
+// When the answer to a save is lost, the save may have arrived anyway (outside review 21.11.2026, M1).
+// So the message never claims that nothing was saved.
+const UNCLEAR_WRITE_CODES = new Set(['NETWORK', 'UPSTREAM_UNAVAILABLE', 'BACKEND_ERROR']);
+const UNCLEAR_WRITE_MESSAGE = 'Keine Antwort vom Server. Ob gespeichert wurde, ist unklar. Die Anzeige wird neu geladen, bitte dort nachsehen.';
+
+function apiError(code, writing = false) {
+  const unclear = writing && UNCLEAR_WRITE_CODES.has(code);
+  const err = new Error(unclear ? UNCLEAR_WRITE_MESSAGE : (ERROR_MESSAGES[code] || `Unerwarteter Fehler (${code}). Nichts wurde gespeichert.`));
   err.code = code;
+  err.unclear = unclear;
   return err;
 }
 
@@ -424,6 +434,13 @@ async function sendApi(action, data) {
     throw apiError('UNAUTHENTICATED');
   }
 
+  const writing = !READ_ACTIONS.has(action);
+  // A save whose answer is lost may have changed data: older answers must not be trusted any more
+  const unclear = code => {
+    const err = apiError(code, writing);
+    if (err.unclear) markWritten();
+    return err;
+  };
   let response;
   try {
     response = await fetch(cfg.gatewayUrl.replace(/\/$/, '') + '/api', {
@@ -433,14 +450,14 @@ async function sendApi(action, data) {
       cache: 'no-store'
     });
   } catch {
-    throw apiError('NETWORK');
+    throw unclear('NETWORK');
   }
 
   let result;
   try {
     result = await response.json();
   } catch {
-    throw apiError('BACKEND_ERROR');
+    throw unclear('BACKEND_ERROR');
   }
   if (!response.ok || !result.ok) {
     // The key is useless now (blocked or replaced by a new device), ask for a code again
@@ -448,10 +465,10 @@ async function sendApi(action, data) {
       saveDeviceToken(null);
       showSignedOut(ERROR_MESSAGES[result.code]);
     }
-    throw apiError(result.code || 'BACKEND_ERROR');
+    throw unclear(result.code || 'BACKEND_ERROR');
   }
   if (result.deviceToken) saveDeviceToken(result.deviceToken);
-  if (!READ_ACTIONS.has(action)) clearReadCache();
+  if (writing) markWritten();
   return result.data;
 }
 
@@ -468,6 +485,13 @@ const READ_CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const readCache = new Map();
 const latestRead = new Map();
 let pendingRefreshes = 0;
+// Counts saves. A read that started before a save may carry the state from before it.
+let writeGeneration = 0;
+
+function markWritten() {
+  writeGeneration++;
+  clearReadCache();
+}
 
 function loadStoredReads() {
   try {
@@ -510,11 +534,15 @@ function setRefreshing(change) {
  * apply(data, isOldAnswer) draws a page. With a stored answer it runs at once, and again when the server
  * has something else to say. options.always: also when nothing changed, options.slot: only the newest
  * request of this slot may draw, so a slow older answer cannot replace a newer page.
+ * options.freshness({ at, stale }) is told how old the shown data is; then a failed refresh stays visible
+ * there instead of a short message.
  */
 async function cachedRead(action, data, apply, options = {}) {
+  const tell = options.freshness || (() => {});
   if (state.persona !== 'live') {
     const answer = await callApi(action, data);
     await apply(answer, false);
+    tell({ at: Date.now(), stale: false });
     return answer;
   }
   const key = action + JSON.stringify(data);
@@ -522,25 +550,50 @@ async function cachedRead(action, data, apply, options = {}) {
   const ticket = {};
   latestRead.set(slot, ticket);
   const hit = readCache.get(key);
-  if (hit) Promise.resolve(apply(hit.data, true)).catch(err => console.warn(err));
+  if (hit) {
+    Promise.resolve(apply(hit.data, true)).catch(err => console.warn(err));
+    tell({ at: hit.at, stale: false });
+  }
 
   setRefreshing(1);
+  const generation = writeGeneration;
   try {
     const fresh = await callApi(action, data, { quiet: Boolean(hit) });
-    // Not while a change arrived in between, that one emptied the cache for a reason
-    const entry = { data: fresh, at: Date.now(), stored: STORED_READS.has(action) };
-    readCache.set(key, entry);
-    if (entry.stored) storeReads();
+    // A save in between: this answer may be from before it, so it is not kept (outside review, M1)
+    const current = generation === writeGeneration;
+    if (current) {
+      const entry = { data: fresh, at: Date.now(), stored: STORED_READS.has(action) };
+      readCache.set(key, entry);
+      if (entry.stored) storeReads();
+    }
     const changed = !hit || JSON.stringify(hit.data) !== JSON.stringify(fresh);
     if (latestRead.get(slot) === ticket && (changed || options.always)) await apply(fresh, false);
+    if (latestRead.get(slot) === ticket) tell({ at: Date.now(), stale: false });
     return fresh;
   } catch (err) {
     if (!hit || err.code === 'UNAUTHENTICATED' || err.code === 'UNLINKED_ACCOUNT') throw err;
-    showToast('Konnte nicht aktualisieren, du siehst den letzten Stand.', 6000);
+    if (options.freshness) tell({ at: hit.at, stale: true });
+    else showToast('Konnte nicht aktualisieren, du siehst den letzten Stand.', 6000);
     return hit.data;
   } finally {
     setRefreshing(-1);
   }
+}
+
+// "Stand: 16:02 Uhr", with the day when it is not today. Stale: stays until a refresh works.
+function dataStateText(at, stale) {
+  const date = new Date(at);
+  const time = date.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+  const today = date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === berlinToday();
+  const day = today ? '' : `${date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit' })}, `;
+  const stand = `Stand: ${day}${time} Uhr`;
+  return stale ? `Nicht aktualisiert. ${stand}. Zusagen und Schlüssel können inzwischen abweichen.` : stand;
+}
+
+function renderDataState(element, info) {
+  if (!element || !info) return;
+  element.textContent = dataStateText(info.at, info.stale);
+  element.classList.toggle('data-stale', Boolean(info.stale));
 }
 
 loadStoredReads();
@@ -1240,6 +1293,8 @@ function switchTab(tabName) {
   state.activeTab = tabName;
   dom.navTabs.forEach(tab => {
     tab.classList.toggle('active', tab.dataset.tab === tabName);
+    if (tab.dataset.tab === tabName) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
   });
   dom.tabContents.forEach(content => {
     content.classList.toggle('active', content.id === `tab-${tabName}`);
@@ -1265,6 +1320,19 @@ function navigate(change) {
   change();
   history.pushState(navSnapshot(), '');
   window.scrollTo(0, 0);
+  focusPage();
+}
+
+// After a change of page the keyboard and screen readers start at its top (outside review, M4)
+function focusPage() {
+  const page = document.querySelector('.tab-content.active');
+  if (!page) return;
+  const target = state.detailSessionId && state.activeTab === 'sessions'
+    ? dom.detailHead
+    : [...page.querySelectorAll('h1, h2, h3, .orga-back')].find(el => el.checkVisibility ? el.checkVisibility() : el.offsetParent !== null);
+  if (!target) return;
+  if (!target.hasAttribute('tabindex') && !/^(BUTTON|A)$/.test(target.tagName)) target.setAttribute('tabindex', '-1');
+  target.focus({ preventScroll: true });
 }
 
 window.addEventListener('popstate', event => {
@@ -1291,6 +1359,7 @@ dom.navTabs.forEach(tab => {
     switchTab(tab.dataset.tab);
     history.replaceState(navSnapshot(), '');
     window.scrollTo(0, 0);
+    focusPage();
   });
 });
 
@@ -1359,17 +1428,40 @@ function sessionHeadHtml(session) {
 }
 
 async function loadSessionPage(sessionId) {
+  const freshness = info => {
+    if (state.detailSessionId === sessionId) renderDataState(dom.detailDataState, info);
+  };
   try {
     let extras = null;
     await cachedRead('getSessionDetail', { sessionId }, detail => {
       if (state.detailSessionId !== sessionId) return;
       drawSessionPage(detail);
       if (!extras) extras = loadSessionExtras(sessionId);
-    }, { slot: 'sessionDetail' });
+    }, { slot: 'sessionDetail', freshness });
     await extras;
   } catch (err) {
-    dom.detailHead.textContent = `Fehler: ${err.message}`;
+    // A page already on screen stays, with a lasting note that it is not current
+    if (state.detailSessionId === sessionId && state.detailShown === sessionId) {
+      renderDataState(dom.detailDataState, { at: state.detailShownAt, stale: true });
+    } else {
+      dom.detailHead.textContent = `Fehler: ${err.message}`;
+    }
   }
+}
+
+// My own sign-up and its one button, also drawn at once from the answer of a save
+function drawMyRegistration(session, myRegistration) {
+  const mine = sessionStateText({ ...session, myRegistration }, true);
+  dom.detailMyState.className = `wk-state ${mine.cls}`;
+  dom.detailMyState.textContent = canChangeRegistration_(session, berlinToday()) || session.status !== 'OPEN'
+    ? mine.text : `${mine.text}. Der Termin ist vorbei.`;
+  const target = registrationTarget_(myRegistration);
+  dom.detailRegBtn.hidden = !canChangeRegistration_(session, berlinToday());
+  dom.detailRegBtn.disabled = false;
+  dom.detailRegBtn.removeAttribute('aria-busy');
+  dom.detailRegBtn.dataset.target = target;
+  dom.detailRegBtn.className = `btn wk-btn ${target === 'CONFIRMED' ? 'wk-join' : 'wk-leave'}`;
+  dom.detailRegBtn.textContent = target === 'CONFIRMED' ? 'Zusagen' : 'Abmelden';
 }
 
 function drawSessionPage(detail) {
@@ -1379,19 +1471,12 @@ function drawSessionPage(detail) {
 
     dom.detailHead.innerHTML = sessionHeadHtml(session);
     state.sharedSession = Boolean(session.attendance);
+    state.detailSession = session;
+    state.detailShown = session.sessionId;
+    state.detailShownAt = Date.now();
 
     // The same one button as on the start page, until midnight of the training day
-    const mine = sessionStateText({ ...session, myRegistration }, true);
-    dom.detailMyState.className = `wk-state ${mine.cls}`;
-    dom.detailMyState.textContent = canChangeRegistration_(session, berlinToday()) || session.status !== 'OPEN'
-      ? mine.text : `${mine.text}. Der Termin ist vorbei.`;
-    const target = registrationTarget_(myRegistration);
-    dom.detailRegBtn.hidden = !canChangeRegistration_(session, berlinToday());
-    dom.detailRegBtn.disabled = false;
-    dom.detailRegBtn.removeAttribute('aria-busy');
-    dom.detailRegBtn.dataset.target = target;
-    dom.detailRegBtn.className = `btn wk-btn ${target === 'CONFIRMED' ? 'wk-join' : 'wk-leave'}`;
-    dom.detailRegBtn.textContent = target === 'CONFIRMED' ? 'Zusagen' : 'Abmelden';
+    drawMyRegistration(session, myRegistration);
 
     // Trainer duty for the youth is a separate thing and does not count as taking part
     const trainerBtn = document.getElementById('detailTrainerBtn');
@@ -1472,11 +1557,14 @@ dom.detailRegBtn.addEventListener('click', async () => {
   try {
     const res = await callApi('setRegistration', { sessionId: state.detailSessionId, state: button.dataset.target });
     showToast(res.state === 'CONFIRMED' ? 'Zugesagt ✓' : 'Abgemeldet');
+    // The server confirmed it: show that at once, the reload of the list comes after
+    if (state.detailSession) drawMyRegistration(state.detailSession, res.state);
     await loadSessionPage(state.detailSessionId);
   } catch (err) {
-    showToast(err.code === 'SESSION_NOT_OPEN' ? 'Dieser Termin ist nicht mehr offen.' : `Fehler: ${err.message}`);
+    showToast(err.code === 'SESSION_NOT_OPEN' ? 'Dieser Termin ist nicht mehr offen.' : `Fehler: ${err.message}`, err.unclear ? 8000 : 3000);
     button.disabled = false;
     button.removeAttribute('aria-busy');
+    if (err.unclear) loadSessionPage(state.detailSessionId);
   }
 });
 document.getElementById('detailTrainerBtn').addEventListener('click', async event => {
@@ -1604,16 +1692,32 @@ async function initUser() {
 
 // Sessions & Personal Rank Rendering
 async function loadSessions() {
+  const freshness = info => {
+    state.sessionsInfo = info;
+    renderDataState(dom.dataState, info);
+  };
   try {
     await cachedRead('listSessions', {}, sessions => {
       state.sessions = sessions;
       renderSessionViewHint();
       renderSessions(sessions);
-    });
+    }, { freshness });
   } catch (err) {
-    dom.sessionList.innerHTML = `<p style="color: var(--danger);">Fehler: ${esc(err.message)}</p>`;
+    // The week on screen stays, with a lasting note that it is not current
+    if (state.sessions && state.sessionsInfo) freshness({ at: state.sessionsInfo.at, stale: true });
+    else dom.sessionList.innerHTML = `<p style="color: var(--danger);">Fehler: ${esc(err.message)}</p>`;
   }
 }
+
+// Back in the app after a while: the week is loaded again, no polling in the background (outside review)
+const STALE_AFTER_MS = 5 * 60 * 1000;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !state.currentUser || state.activeTab !== 'sessions') return;
+  const at = state.sessionsInfo ? state.sessionsInfo.at : 0;
+  if (Date.now() - at < STALE_AFTER_MS) return;
+  if (state.detailSessionId) loadSessionPage(state.detailSessionId);
+  else loadSessions();
+});
 
 function renderSessionViewHint() {
   const view = state.currentUser?.sessionView;
@@ -2145,12 +2249,17 @@ async function saveRegistration(button, session) {
   try {
     const res = await callApi('setRegistration', { sessionId: session.sessionId, state: button.dataset.target });
     showToast(res.state === 'CONFIRMED' ? 'Zugesagt ✓' : 'Abgemeldet');
+    // The server confirmed it: the card shows it at once, the counts come with the reload
+    if (Array.isArray(state.sessions)) {
+      state.sessions = state.sessions.map(s => (s.sessionId === session.sessionId ? { ...s, myRegistration: res.state } : s));
+      renderSessions(state.sessions);
+    }
     await loadSessions();
   } catch (err) {
-    showToast(err.code === 'SESSION_NOT_OPEN' ? 'Dieser Termin ist nicht mehr offen.' : `Fehler: ${err.message}`);
+    showToast(err.code === 'SESSION_NOT_OPEN' ? 'Dieser Termin ist nicht mehr offen.' : `Fehler: ${err.message}`, err.unclear ? 8000 : 3000);
     button.disabled = false;
     button.removeAttribute('aria-busy');
-    if (err.code === 'SESSION_NOT_OPEN') loadSessions();
+    if (err.code === 'SESSION_NOT_OPEN' || err.unclear) loadSessions();
   }
 }
 
@@ -2204,23 +2313,36 @@ function renderPreferences(templates, prefs) {
   templates
     .sort((a, b) => a.weekdayIso - b.weekdayIso || a.startLocal.localeCompare(b.startLocal))
     .forEach(t => {
-      const item = document.createElement('div');
+      // The whole row is the switch, not only the small slider (outside review, M4)
+      const item = document.createElement('label');
       item.className = 'pref-item';
       item.innerHTML = `
         <div>
           <div class="pref-label">${esc(WEEKDAYS[t.weekdayIso])} (${esc(t.venue)})${t.audience === 'YOUTH' ? ', Jugend' : ''}${groupLabel(t) ? `, ${groupLabel(t)}` : ''}</div>
           <div class="pref-sub">${esc(t.startLocal)} – ${esc(t.endLocal)} Uhr</div>
         </div>
-        <label class="switch" aria-label="${esc(WEEKDAYS[t.weekdayIso])} ${esc(t.startLocal)} automatisch vormerken">
-          <input type="checkbox">
+        <span class="switch">
+          <input type="checkbox" aria-label="${esc(WEEKDAYS[t.weekdayIso])} ${esc(t.startLocal)} automatisch vormerken">
           <span class="slider"></span>
-        </label>
+        </span>
       `;
       const input = item.querySelector('input');
       input.dataset.templateId = t.templateId;
       input.checked = prefs[t.templateId] === true;
+      input.addEventListener('change', renderPrefDirty);
       dom.prefList.append(item);
     });
+  renderPrefDirty();
+}
+
+// "Noch nicht gespeichert" as long as a switch differs from what the server has
+function prefsDirty() {
+  return [...dom.prefList.querySelectorAll('input[type=checkbox]')]
+    .some(input => input.checked !== (state.preferences?.[input.dataset.templateId] === true));
+}
+
+function renderPrefDirty() {
+  dom.prefDirty.hidden = !prefsDirty();
 }
 
 dom.savePreferencesBtn.addEventListener('click', async () => {
@@ -2231,6 +2353,8 @@ dom.savePreferencesBtn.addEventListener('click', async () => {
       payload[input.dataset.templateId] = input.checked;
     });
     await callApi('setPreferences', payload);
+    state.preferences = { ...(state.preferences || {}), ...payload };
+    renderPrefDirty();
     showToast('Feste Tage gespeichert ✓');
   } catch (err) {
     showToast(`Fehler: ${err.message}`);
@@ -2401,7 +2525,8 @@ function renderAttendance() {
   renderAttendanceSearch();
 }
 
-// Who has confirmed but is not entered yet: the usual evening in one tap
+// Who has confirmed but is not entered yet. One tap selects them, a second one saves: so the list is seen
+// and missing people can be taken out before (user decision 21.11.2026, outside review M5).
 function attendanceOpenConfirmed() {
   return (state.attendance?.entries || []).filter(e => e.registrationState === 'CONFIRMED' && e.attendanceState === 'UNKNOWN');
 }
@@ -2417,10 +2542,12 @@ function renderAttendanceBulk(canChange) {
   const open = attendanceOpenConfirmed();
   const picked = attendancePicked();
   dom.attendanceBulk.hidden = !canChange || (open.length === 0 && picked.length === 0);
-  dom.attendanceConfirmedBtn.hidden = open.length === 0;
-  dom.attendanceConfirmedBtn.textContent = `Alle ${open.length} Zugesagten: War da`;
+  const unpicked = open.filter(e => !state.attendancePicks?.has(e.playerId));
+  dom.attendanceConfirmedBtn.hidden = unpicked.length === 0;
+  dom.attendanceConfirmedBtn.textContent = `Alle ${open.length} Zugesagten auswählen`;
   dom.attendanceSelectionBar.hidden = picked.length === 0;
-  dom.attendanceSelectionCount.textContent = `${picked.length} ausgewählt`;
+  dom.attendanceSelectionCount.textContent = `${picked.length} ausgewählt. Bestätige nur, wer tatsächlich da war.`;
+  dom.attendanceSelectedPresent.textContent = `${picked.length} ${picked.length === 1 ? 'Person' : 'Personen'}: War da`;
 }
 
 function attendancePickBox(person, label) {
@@ -2475,7 +2602,12 @@ async function saveAttendanceBulk(people, nextState) {
   if (people.some(p => p.playerId === me)) loadPlayerRank();
 }
 
-dom.attendanceConfirmedBtn.addEventListener('click', () => saveAttendanceBulk(attendanceOpenConfirmed(), 'PRESENT'));
+dom.attendanceConfirmedBtn.addEventListener('click', () => {
+  if (!state.attendancePicks) state.attendancePicks = new Set();
+  attendanceOpenConfirmed().forEach(e => state.attendancePicks.add(e.playerId));
+  renderAttendance();
+  dom.attendanceSelectedPresent.focus({ preventScroll: true });
+});
 dom.attendanceSelectedPresent.addEventListener('click', () => saveAttendanceBulk(attendancePicked(), 'PRESENT'));
 dom.attendanceSelectedAbsent.addEventListener('click', () => saveAttendanceBulk(attendancePicked(), 'ABSENT'));
 
