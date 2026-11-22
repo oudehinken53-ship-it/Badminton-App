@@ -369,6 +369,7 @@ const ERROR_MESSAGES = {
   NOT_IN_SHEET: 'Dieser Termin steht noch nicht in der Teilnehmerliste. Zusagen geht, sobald die neue Woche angelegt ist.',
   NOT_IN_SHEET_LIST: 'Du stehst nicht in der Teilnehmerliste im Sheet. Bitte bei Albert melden.',
   SHEET_WRITE_FAILED: 'Die Teilnehmerliste im Sheet hat sich gerade geändert. Nichts wurde gespeichert, bitte noch einmal tippen.',
+  NO_GUEST_SLOT: 'In der Teilnehmerliste ist Platz für zwei Gäste, beide sind schon vergeben.',
   INVALID_FEATURE: 'Diesen Schalter gibt es nicht. Bitte die App neu laden.'
 };
 
