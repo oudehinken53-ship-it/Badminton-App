@@ -366,6 +366,9 @@ const ERROR_MESSAGES = {
   UPSTREAM_UNAVAILABLE: 'Der Server ist gerade nicht erreichbar.',
   NETWORK: 'Keine Verbindung zum Server.',
   FEATURE_OFF: 'Diese Funktion ist für dich noch nicht freigegeben.',
+  NOT_IN_SHEET: 'Dieser Termin steht noch nicht in der Teilnehmerliste. Zusagen geht, sobald die neue Woche angelegt ist.',
+  NOT_IN_SHEET_LIST: 'Du stehst nicht in der Teilnehmerliste im Sheet. Bitte bei Albert melden.',
+  SHEET_WRITE_FAILED: 'Die Teilnehmerliste im Sheet hat sich gerade geändert. Nichts wurde gespeichert, bitte noch einmal tippen.',
   INVALID_FEATURE: 'Diesen Schalter gibt es nicht. Bitte die App neu laden.'
 };
 
@@ -878,6 +881,9 @@ async function runMockApi(action, data) {
 
     case 'setFeature':
       throw apiError('INVALID_FEATURE');
+
+    case 'syncTeilnehmerliste':
+      return { status: 'OFF' };
 
     case 'listRankingMembers': {
       if (user.role === 'PLAYER') throw apiError('FORBIDDEN');
@@ -1466,7 +1472,9 @@ function drawMyRegistration(session, myRegistration) {
   dom.detailMyState.textContent = canChangeRegistration_(session, berlinToday()) || session.status !== 'OPEN'
     ? mine.text : `${mine.text}. Der Termin ist vorbei.`;
   const target = registrationTarget_(myRegistration);
-  dom.detailRegBtn.hidden = !canChangeRegistration_(session, berlinToday());
+  const waits = session.signupWaits === 'NOT_IN_SHEET';
+  if (waits) dom.detailMyState.textContent = `${mine.text}. Zusagen geht, sobald der Termin in der Teilnehmerliste im Sheet steht.`;
+  dom.detailRegBtn.hidden = waits || !canChangeRegistration_(session, berlinToday());
   dom.detailRegBtn.disabled = false;
   dom.detailRegBtn.removeAttribute('aria-busy');
   dom.detailRegBtn.dataset.target = target;
@@ -2178,6 +2186,8 @@ function sessionStateText(session, long) {
 // One button. It sends the target state, so an old picture from the cache cannot send the opposite.
 function registrationButtonHtml(session) {
   if (!canChangeRegistration_(session, berlinToday())) return '';
+  // Until 29.12. the Teilnehmerliste in the sheet decides, a session without its column waits for it
+  if (session.signupWaits === 'NOT_IN_SHEET') return '<span class="wk-wait">Zusage ab Wochenbeginn</span>';
   const target = registrationTarget_(session.myRegistration);
   return `<button class="btn wk-btn ${target === 'CONFIRMED' ? 'wk-join' : 'wk-leave'}" type="button" data-target="${target}">${target === 'CONFIRMED' ? 'Zusagen' : 'Abmelden'}</button>`;
 }
@@ -2271,7 +2281,7 @@ async function saveRegistration(button, session) {
     showToast(err.code === 'SESSION_NOT_OPEN' ? 'Dieser Termin ist nicht mehr offen.' : `Fehler: ${err.message}`, err.unclear ? 8000 : 3000);
     button.disabled = false;
     button.removeAttribute('aria-busy');
-    if (err.code === 'SESSION_NOT_OPEN' || err.unclear) loadSessions();
+    if (err.code === 'SESSION_NOT_OPEN' || err.unclear || err.code === 'SHEET_WRITE_FAILED') loadSessions();
   }
 }
 
@@ -2294,7 +2304,11 @@ function renderSessions(allSessions) {
   dom.laterList.replaceChildren(...plan.later.map(session => weekCard(session, 'compact')));
 }
 
-dom.refreshSessionsBtn.addEventListener('click', () => loadSessions());
+dom.refreshSessionsBtn.addEventListener('click', async () => {
+  // While the sheet decides, the button takes its ticks over first. A failure only means the 5-minute run does it.
+  if (featureOn('teilnehmerlisteAbgleich')) await callApi('syncTeilnehmerliste', {}, { quiet: true }).catch(() => null);
+  loadSessions();
+});
 
 // Preferences Tab
 async function loadPreferences() {
@@ -2321,6 +2335,7 @@ async function loadPreferences() {
 }
 
 function renderPreferences(templates, prefs) {
+  document.getElementById('prefSheetHint').hidden = !featureOn('teilnehmerlisteAbgleich');
   dom.prefList.replaceChildren();
   templates
     .sort((a, b) => a.weekdayIso - b.weekdayIso || a.startLocal.localeCompare(b.startLocal))
@@ -2386,6 +2401,7 @@ async function loadLeaderboard() {
     const applyRankings = async rankings => {
       drawn = true;
     state.rankings = rankings;
+    document.getElementById('probeHintRankings').hidden = !(rankings && rankings.probe);
     const active = Boolean(rankings && rankings.active);
     if (active && rankings.rankingGroup) {
       state.rankingGroup = rankings.rankingGroup;
@@ -2821,6 +2837,7 @@ function renderProgressCard(progress) {
         <div><span>Konstanz</span><strong>${rankText(progress.consistency.rank)}</strong><small>${esc(progress.consistency.activeWeeks)} ${progress.consistency.activeWeeks === 1 ? 'Woche' : 'Wochen'}</small></div>
       </div>
       ${levelBarHtml(progress.level)}
+      ${progress.probe ? '<p class="probe-hint">Probelauf bis 31.12., zählt nicht für die Wertung 2026.</p>' : ''}
       <div class="player-rank-cta">Wertungen ➔</div>
     </div>
   `;

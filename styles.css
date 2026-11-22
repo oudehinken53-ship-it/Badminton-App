@@ -748,6 +748,9 @@ input:checked + .slider:before {
 /* How current the shown data is (outside review, M1) */
 .data-state { margin: -4px 0 10px; font-size: 0.85rem; color: var(--gray-600); }
 .data-state:empty { display: none; }
+/* Notes of the trial in November and December 2026 */
+.probe-hint { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: var(--info-blue-light); color: #075985; font-size: 0.85rem; font-weight: 600; }
+.wk-wait { font-size: 0.85rem; color: var(--gray-600); }
 #detailDataState { margin: 10px 0 0; }
 .data-state.data-stale { padding: 8px 10px; border-radius: 8px; background: #fff4e5; color: #7a4100; font-weight: 600; }
 
