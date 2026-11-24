@@ -40,9 +40,12 @@ function sessionPhase_(session, today) {
   return session.dateLocal === today ? 'TODAY' : 'COMING';
 }
 
-// One may sign up or withdraw while the session is open and its day has not ended
-function canChangeRegistration_(session, today) {
-  return session.status === 'OPEN' && session.dateLocal >= today;
+// One may sign up or withdraw while the session is open: until the cutoff the server names (09:00 on the
+// next morning, DECISIONS 28), and without one until the end of its day
+function canChangeRegistration_(session, today, nowMs = Date.now()) {
+  if (session.status !== 'OPEN') return false;
+  if (session.signupUntil) return nowMs < Date.parse(session.signupUntil);
+  return session.dateLocal >= today;
 }
 
 // The registration a button sends. Always a target state, never "toggle", so that an old picture

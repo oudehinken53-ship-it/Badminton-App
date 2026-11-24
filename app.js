@@ -2240,9 +2240,12 @@ function pastRow(session) {
   const row = document.createElement('div');
   const open = session.attendance && session.attendance.windowState === 'OPEN';
   row.className = 'wk-past';
+  // Until 09:00 the next morning one still signs up or declines (DECISIONS 28)
+  const late = canChangeRegistration_(session, berlinToday());
+  const what = session.status === 'CANCELED' ? 'abgesagt' : late ? `Zusage bis ${formatDeadline(session.signupUntil)}` : 'vorbei';
   row.innerHTML = `
-    <span>${esc(shortDate(session.dateLocal))} · ${esc(session.startLocal)} · ${session.status === 'CANCELED' ? 'abgesagt' : 'vorbei'}</span>
-    <span class="wk-past-link">${open ? 'Wer war da? ›' : 'Details ›'}</span>
+    <span>${esc(shortDate(session.dateLocal))} · ${esc(session.startLocal)} · ${esc(what)}${late && session.myRegistration === 'CONFIRMED' ? ' · <span class="wk-yes">✓ dabei</span>' : ''}</span>
+    ${late ? registrationButtonHtml(session) : `<span class="wk-past-link">${open ? 'Wer war da? ›' : 'Details ›'}</span>`}
   `;
   if (open && session.attendance.deadline) row.title = `Eintragen bis ${formatDeadline(session.attendance.deadline)}`;
   wireWeekCard(row, session);
@@ -2509,6 +2512,10 @@ async function loadAttendance(sessionId) {
 }
 
 function attendanceStatusText(data) {
+  if (data.mode === 'SIGNUP') {
+    if (data.windowState === 'NOT_YET') return `Wer bis ${formatDeadline(data.deadline)} zugesagt hat, bekommt die Punkte. Zu- und Absagen geht bis dahin oben bei „Meine Anmeldung“.`;
+    if (data.windowState === 'LOCKED') return data.canCorrect ? 'Abgeschlossen: Alle Zugesagten waren dabei. Als Admin kannst du mit Begründung korrigieren.' : 'Abgeschlossen: Alle Zugesagten waren dabei.';
+  }
   if (data.windowState === 'NOT_YET') return `Ab Trainingsbeginn kannst du hier eintragen, wer tatsächlich da ist, bis ${formatDeadline(data.deadline)}.`;
   if (data.windowState === 'CANCELED') return 'Dieser Termin ist abgesagt und zählt nicht für die Wertung.';
   if (data.windowState === 'PLANNED') return 'Dieser Termin ist noch nicht geöffnet.';
